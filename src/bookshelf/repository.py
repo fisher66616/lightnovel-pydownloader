@@ -189,6 +189,39 @@ class BookshelfRepository:
             conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
             self._resequence_site(conn, book.site)
 
+    def update_books_category(self, site: str, book_ids: List[int], category: str):
+        if not book_ids:
+            return
+        placeholders = ", ".join("?" for _ in book_ids)
+        params = [category, self._now(), site, *book_ids]
+        with self._connect() as conn:
+            conn.execute(
+                f"""
+                UPDATE books
+                SET category = ?,
+                    updated_at = ?
+                WHERE site = ?
+                  AND id IN ({placeholders})
+                """,
+                params,
+            )
+
+    def delete_books(self, site: str, book_ids: List[int]):
+        if not book_ids:
+            return
+        placeholders = ", ".join("?" for _ in book_ids)
+        params = [site, *book_ids]
+        with self._connect() as conn:
+            conn.execute(
+                f"""
+                DELETE FROM books
+                WHERE site = ?
+                  AND id IN ({placeholders})
+                """,
+                params,
+            )
+            self._resequence_site(conn, site)
+
     def move_book(self, book_id: int, direction: str) -> bool:
         book = self.get_book(book_id)
         if book is None:

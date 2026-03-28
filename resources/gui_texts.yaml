@@ -9,7 +9,9 @@ button:
   add: '新增'
   edit: '编辑'
   quick_edit_category: '改分类'
+  bulk_edit_category: '批量改分类'
   delete: '删除'
+  bulk_delete: '批量删除'
   move_up: '上移'
   move_down: '下移'
   fill_task: '回填到任务区'
@@ -100,6 +102,7 @@ text:
   bookshelf_title_site: '小说列表（{site}）'
   bookshelf_subtitle: ''
   bookshelf_empty: '暂无记录'
+  bookshelf_multi_selected: '已选择 {count} 条记录'
   book_editor_hint: ''
 
 filter:
@@ -159,3 +162,7 @@ dialog:
   choose_chrome_path_title: '选择 Chrome 程序'
   quick_category_title: '修改分类'
   quick_category_label: '分类名称'
+  bulk_category_title: '批量修改分类'
+  bulk_category_label: '分类名称'
+  bulk_delete_title: '批量删除书库记录'
+  bulk_delete_body: '确定要删除这 {count} 条记录吗？\n\n{names}{ellipsis}\n\n这只会删除书库记录，不会删除已经导出的文件。'

@@ -38,7 +38,9 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.add_button = QtWidgets.QPushButton(TEXTS.get_text("button.add"))
         self.edit_button = QtWidgets.QPushButton(TEXTS.get_text("button.edit"))
         self.quick_edit_category_button = QtWidgets.QPushButton(TEXTS.get_text("button.quick_edit_category"))
+        self.bulk_edit_category_button = QtWidgets.QPushButton(TEXTS.get_text("button.bulk_edit_category"))
         self.delete_button = QtWidgets.QPushButton(TEXTS.get_text("button.delete"))
+        self.bulk_delete_button = QtWidgets.QPushButton(TEXTS.get_text("button.bulk_delete"))
         self.move_up_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_up"))
         self.move_down_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_down"))
         self.fill_task_button = QtWidgets.QPushButton(TEXTS.get_text("button.fill_task"))
@@ -46,7 +48,9 @@ class BookshelfPanel(QtWidgets.QWidget):
             self.add_button,
             self.edit_button,
             self.quick_edit_category_button,
+            self.bulk_edit_category_button,
             self.delete_button,
+            self.bulk_delete_button,
             self.move_up_button,
             self.move_down_button,
             self.fill_task_button,
@@ -69,7 +73,7 @@ class BookshelfPanel(QtWidgets.QWidget):
             ]
         )
         self.table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection)
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(False)
@@ -91,6 +95,10 @@ class BookshelfPanel(QtWidgets.QWidget):
         detail_layout.setHorizontalSpacing(8)
         detail_layout.setVerticalSpacing(4)
 
+        self.selection_summary_value = QtWidgets.QLabel("-")
+        self.selection_summary_value.setStyleSheet("font-weight: 600;")
+        self.selection_summary_value.hide()
+
         url_title = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_url"))
         category_title = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_category"))
         note_title = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_note"))
@@ -107,16 +115,17 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.created_value = QtWidgets.QLabel("-")
         self.updated_value = QtWidgets.QLabel("-")
 
-        detail_layout.addWidget(url_title, 0, 0)
-        detail_layout.addWidget(self.url_value, 0, 1)
-        detail_layout.addWidget(category_title, 0, 2)
-        detail_layout.addWidget(self.category_value, 0, 3)
-        detail_layout.addWidget(note_title, 1, 0)
-        detail_layout.addWidget(self.note_value, 1, 1)
-        detail_layout.addWidget(created_title, 1, 2)
-        detail_layout.addWidget(self.created_value, 1, 3)
-        detail_layout.addWidget(updated_title, 1, 4)
-        detail_layout.addWidget(self.updated_value, 1, 5)
+        detail_layout.addWidget(self.selection_summary_value, 0, 0, 1, 6)
+        detail_layout.addWidget(url_title, 1, 0)
+        detail_layout.addWidget(self.url_value, 1, 1)
+        detail_layout.addWidget(category_title, 1, 2)
+        detail_layout.addWidget(self.category_value, 1, 3)
+        detail_layout.addWidget(note_title, 2, 0)
+        detail_layout.addWidget(self.note_value, 2, 1)
+        detail_layout.addWidget(created_title, 2, 2)
+        detail_layout.addWidget(self.created_value, 2, 3)
+        detail_layout.addWidget(updated_title, 2, 4)
+        detail_layout.addWidget(self.updated_value, 2, 5)
         detail_layout.setColumnStretch(1, 1)
         detail_layout.setColumnStretch(3, 0)
         detail_layout.setColumnStretch(5, 0)

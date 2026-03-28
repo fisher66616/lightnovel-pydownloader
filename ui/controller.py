@@ -34,7 +34,7 @@ class MainController(QtCore.QObject):
         self.bookshelf_service = BookshelfService()
         self.texts = get_text_catalog()
         self.window = MainWindow()
-        self._selected_bookshelf_id: Optional[int] = None
+        self._selected_bookshelf_ids: list[int] = []
         self._bookshelf_filter_key = "__all__"
 
         self.log_signal.connect(self.window.log_text.appendPlainText)
@@ -59,7 +59,9 @@ class MainController(QtCore.QObject):
         self.window.bookshelf_panel.add_button.clicked.connect(self._add_bookshelf_book)
         self.window.bookshelf_panel.edit_button.clicked.connect(self._edit_bookshelf_book)
         self.window.bookshelf_panel.quick_edit_category_button.clicked.connect(self._quick_edit_bookshelf_category)
+        self.window.bookshelf_panel.bulk_edit_category_button.clicked.connect(self._bulk_edit_bookshelf_category)
         self.window.bookshelf_panel.delete_button.clicked.connect(self._delete_bookshelf_book)
+        self.window.bookshelf_panel.bulk_delete_button.clicked.connect(self._bulk_delete_bookshelf)
         self.window.bookshelf_panel.move_up_button.clicked.connect(self._move_bookshelf_book_up)
         self.window.bookshelf_panel.move_down_button.clicked.connect(self._move_bookshelf_book_down)
         self.window.bookshelf_panel.fill_task_button.clicked.connect(self._fill_task_from_bookshelf)
@@ -310,7 +312,7 @@ class MainController(QtCore.QObject):
             return self.texts.get_text("dialog.task_failed_login")
         return self.texts.get_text("dialog.task_failed_generic")
 
-    def _refresh_bookshelf(self, selected_book_id: Optional[int] = None):
+    def _refresh_bookshelf(self, selected_book_ids: Optional[list[int]] = None):
         site = self._current_site()
         panel = self.window.bookshelf_panel
         books = self.bookshelf_service.list_books(site)
@@ -318,18 +320,18 @@ class MainController(QtCore.QObject):
         visible_books = self._filter_books(books)
         panel.title_label.setText(self.texts.get_text("text.bookshelf_title_site", site=site))
         panel.empty_hint_label.setVisible(not visible_books)
-        panel.table.setRowCount(len(visible_books))
+        table = panel.table
+        table.blockSignals(True)
+        table.setRowCount(len(visible_books))
         for row, book in enumerate(visible_books):
             self._set_table_item(row, 0, book.custom_name, book.id)
             self._set_table_item(row, 1, book.category or "-", book.id)
             self._set_table_item(row, 2, self._strategy_label(book.update_strategy), book.id)
             self._set_table_item(row, 3, self._format_timestamp(book.updated_at), book.id)
-        target_book_id = selected_book_id if selected_book_id is not None else self._selected_bookshelf_id
-        self._selected_bookshelf_id = None
-        if target_book_id is not None and self._select_bookshelf_book(target_book_id):
-            return
-        panel.table.clearSelection()
-        panel.table.setCurrentItem(None)
+        target_book_ids = selected_book_ids if selected_book_ids is not None else self._selected_bookshelf_ids
+        restored_ids = self._restore_bookshelf_selection(target_book_ids)
+        table.blockSignals(False)
+        self._selected_bookshelf_ids = restored_ids
         self._sync_bookshelf_detail()
 
     def _set_table_item(self, row: int, column: int, text: str, book_id: int):
@@ -337,31 +339,67 @@ class MainController(QtCore.QObject):
         item.setData(QtCore.Qt.ItemDataRole.UserRole, book_id)
         self.window.bookshelf_panel.table.setItem(row, column, item)
 
-    def _selected_bookshelf_book(self) -> Optional[BookshelfBook]:
+    def _selected_bookshelf_ids_in_view(self) -> list[int]:
         table = self.window.bookshelf_panel.table
-        selected_items = table.selectedItems()
-        if not selected_items:
+        selection_model = table.selectionModel()
+        if selection_model is None:
+            self._selected_bookshelf_ids = []
+            return []
+        selected_indexes = sorted(selection_model.selectedRows(0), key=lambda index: index.row())
+        selected_ids: list[int] = []
+        seen: set[int] = set()
+        for index in selected_indexes:
+            item = table.item(index.row(), 0)
+            if item is None:
+                continue
+            book_id = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if not book_id:
+                continue
+            normalized_id = int(book_id)
+            if normalized_id in seen:
+                continue
+            seen.add(normalized_id)
+            selected_ids.append(normalized_id)
+        self._selected_bookshelf_ids = selected_ids
+        return selected_ids
+
+    def _selected_bookshelf_book(self) -> Optional[BookshelfBook]:
+        selected_ids = self._selected_bookshelf_ids_in_view()
+        if len(selected_ids) != 1:
             return None
-        book_id = selected_items[0].data(QtCore.Qt.ItemDataRole.UserRole)
-        if not book_id:
-            return None
-        self._selected_bookshelf_id = int(book_id)
-        return self.bookshelf_service.get_book(int(book_id))
+        return self.bookshelf_service.get_book(selected_ids[0])
 
     def _sync_bookshelf_detail(self):
         panel = self.window.bookshelf_panel
-        book = self._selected_bookshelf_book()
-        has_selection = book is not None
-        for button in (
-            panel.edit_button,
-            panel.quick_edit_category_button,
-            panel.delete_button,
-            panel.move_up_button,
-            panel.move_down_button,
-            panel.fill_task_button,
-        ):
-            button.setEnabled(has_selection)
-        if not has_selection:
+        selected_ids = self._selected_bookshelf_ids_in_view()
+        selected_count = len(selected_ids)
+        single_selected = selected_count == 1
+        multi_selected = selected_count > 1
+        panel.edit_button.setEnabled(single_selected)
+        panel.quick_edit_category_button.setEnabled(single_selected)
+        panel.delete_button.setEnabled(single_selected)
+        panel.move_up_button.setEnabled(single_selected)
+        panel.move_down_button.setEnabled(single_selected)
+        panel.fill_task_button.setEnabled(single_selected)
+        panel.bulk_edit_category_button.setEnabled(multi_selected)
+        panel.bulk_delete_button.setEnabled(multi_selected)
+        if not single_selected:
+            if multi_selected:
+                panel.selection_summary_value.setText(
+                    self.texts.get_text("text.bookshelf_multi_selected", count=selected_count)
+                )
+                panel.selection_summary_value.show()
+            else:
+                panel.selection_summary_value.hide()
+            self._set_detail_text(panel.url_value, "-")
+            self._set_detail_text(panel.category_value, "-")
+            self._set_detail_text(panel.note_value, "-")
+            self._set_detail_text(panel.created_value, "-")
+            self._set_detail_text(panel.updated_value, "-")
+            return
+        panel.selection_summary_value.hide()
+        book = self.bookshelf_service.get_book(selected_ids[0])
+        if book is None:
             self._set_detail_text(panel.url_value, "-")
             self._set_detail_text(panel.category_value, "-")
             self._set_detail_text(panel.note_value, "-")
@@ -436,11 +474,11 @@ class MainController(QtCore.QObject):
 
     def _handle_bookshelf_filter_changed(self):
         self._bookshelf_filter_key = str(self.window.bookshelf_panel.category_filter_combo.currentData() or "__all__")
-        self._refresh_bookshelf(selected_book_id=self._selected_bookshelf_id)
+        self._refresh_bookshelf(selected_book_ids=self._selected_bookshelf_ids)
 
     def _handle_bookshelf_search_changed(self, text: str):
         self._bookshelf_search_text = text.strip()
-        self._refresh_bookshelf(selected_book_id=self._selected_bookshelf_id)
+        self._refresh_bookshelf(selected_book_ids=self._selected_bookshelf_ids)
 
     def _add_bookshelf_book(self):
         site = self._current_site()
@@ -465,7 +503,7 @@ class MainController(QtCore.QObject):
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(self.window, self.texts.get_text("dialog.save_to_bookshelf_failed_title"), self.texts.get_text(str(exc), default=str(exc)))
             return
-        self._refresh_bookshelf(selected_book_id=created.id)
+        self._refresh_bookshelf(selected_book_ids=[created.id])
 
     def _edit_bookshelf_book(self):
         book = self._selected_bookshelf_book()
@@ -484,7 +522,7 @@ class MainController(QtCore.QObject):
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(self.window, self.texts.get_text("dialog.update_bookshelf_failed_title"), self.texts.get_text(str(exc), default=str(exc)))
             return
-        self._refresh_bookshelf(selected_book_id=updated.id)
+        self._refresh_bookshelf(selected_book_ids=[updated.id])
 
     def _quick_edit_bookshelf_category(self):
         book = self._selected_bookshelf_book()
@@ -520,7 +558,27 @@ class MainController(QtCore.QObject):
                 self.texts.get_text(str(exc), default=str(exc)),
             )
             return
-        self._refresh_bookshelf(selected_book_id=updated.id)
+        self._refresh_bookshelf(selected_book_ids=[updated.id])
+
+    def _bulk_edit_bookshelf_category(self):
+        selected_ids = self._selected_bookshelf_ids_in_view()
+        if len(selected_ids) < 2:
+            return
+        site = self._current_site()
+        books = self.bookshelf_service.list_books(site)
+        categories = self._ordered_categories(books)
+        value, accepted = QtWidgets.QInputDialog.getItem(
+            self.window,
+            self.texts.get_text("dialog.bulk_category_title"),
+            self.texts.get_text("dialog.bulk_category_label"),
+            categories,
+            0,
+            True,
+        )
+        if not accepted:
+            return
+        self.bookshelf_service.update_books_category(site, selected_ids, value.strip())
+        self._refresh_bookshelf(selected_book_ids=selected_ids)
 
     def _delete_bookshelf_book(self):
         book = self._selected_bookshelf_book()
@@ -534,7 +592,36 @@ class MainController(QtCore.QObject):
         if reply != QtWidgets.QMessageBox.StandardButton.Yes:
             return
         self.bookshelf_service.delete_book(book.id)
-        self._refresh_bookshelf()
+        self._refresh_bookshelf(selected_book_ids=[])
+
+    def _bulk_delete_bookshelf(self):
+        selected_ids = self._selected_bookshelf_ids_in_view()
+        if len(selected_ids) < 2:
+            return
+        books: list[BookshelfBook] = []
+        for book_id in selected_ids:
+            book = self.bookshelf_service.get_book(book_id)
+            if book is not None:
+                books.append(book)
+        if not books:
+            self._refresh_bookshelf(selected_book_ids=[])
+            return
+        preview_names = [f"• {book.custom_name}" for book in books[:5]]
+        ellipsis = "\n……" if len(books) > 5 else ""
+        reply = QtWidgets.QMessageBox.question(
+            self.window,
+            self.texts.get_text("dialog.bulk_delete_title"),
+            self.texts.get_text(
+                "dialog.bulk_delete_body",
+                count=len(books),
+                names="\n".join(preview_names),
+                ellipsis=ellipsis,
+            ),
+        )
+        if reply != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        self.bookshelf_service.delete_books(self._current_site(), [book.id for book in books if book.id is not None])
+        self._refresh_bookshelf(selected_book_ids=[])
 
     def _move_bookshelf_book_up(self):
         self._move_bookshelf_book("up")
@@ -564,7 +651,7 @@ class MainController(QtCore.QObject):
             if item.id is not None
         ]
         self.bookshelf_service.reorder_site(self._current_site(), ordered_ids)
-        self._refresh_bookshelf(selected_book_id=book.id)
+        self._refresh_bookshelf(selected_book_ids=[book.id])
 
     def _fill_task_from_bookshelf(self):
         book = self._selected_bookshelf_book()
@@ -581,19 +668,52 @@ class MainController(QtCore.QObject):
             self.texts.get_text("dialog.fill_task_body"),
         )
 
-    def _select_bookshelf_book(self, book_id: Optional[int]):
-        if book_id is None:
-            return False
+    def _restore_bookshelf_selection(self, book_ids: Optional[list[int]]) -> list[int]:
         table = self.window.bookshelf_panel.table
+        table.clearSelection()
+        table.setCurrentItem(None)
+        if not book_ids:
+            return []
+        ordered_ids: list[int] = []
+        seen: set[int] = set()
+        for book_id in book_ids:
+            normalized_id = int(book_id)
+            if normalized_id in seen:
+                continue
+            seen.add(normalized_id)
+            ordered_ids.append(normalized_id)
+        wanted_ids = set(ordered_ids)
+        selection_model = table.selectionModel()
+        if selection_model is None:
+            return []
+        restored_ids: list[int] = []
+        first_item: Optional[QtWidgets.QTableWidgetItem] = None
+        first_index: Optional[QtCore.QModelIndex] = None
         for row in range(table.rowCount()):
             item = table.item(row, 0)
-            if item and item.data(QtCore.Qt.ItemDataRole.UserRole) == book_id:
-                table.selectRow(row)
-                table.scrollToItem(item)
-                self._selected_bookshelf_id = int(book_id)
-                self._sync_bookshelf_detail()
-                return True
-        return False
+            if item is None:
+                continue
+            book_id = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if book_id not in wanted_ids:
+                continue
+            restored_ids.append(int(book_id))
+            model_index = table.model().index(row, 0)
+            selection_model.select(
+                model_index,
+                QtCore.QItemSelectionModel.SelectionFlag.Select
+                | QtCore.QItemSelectionModel.SelectionFlag.Rows,
+            )
+            if first_item is None:
+                first_item = item
+                first_index = model_index
+        if first_item is not None:
+            if first_index is not None:
+                selection_model.setCurrentIndex(
+                    first_index,
+                    QtCore.QItemSelectionModel.SelectionFlag.NoUpdate,
+                )
+            table.scrollToItem(first_item)
+        return restored_ids
 
     def _strategy_label(self, update_strategy: str) -> str:
         try:
@@ -620,6 +740,7 @@ class MainController(QtCore.QObject):
 
     def _handle_site_changed(self, site: str):
         self._bookshelf_filter_key = "__all__"
+        self._selected_bookshelf_ids = []
         self.window.bookshelf_panel.search_edit.blockSignals(True)
         self.window.bookshelf_panel.search_edit.clear()
         self.window.bookshelf_panel.search_edit.blockSignals(False)

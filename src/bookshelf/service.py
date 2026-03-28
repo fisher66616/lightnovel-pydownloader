@@ -35,6 +35,20 @@ class BookshelfService:
     def delete_book(self, book_id: int):
         self.repository.delete_book(book_id)
 
+    def update_books_category(self, site: str, book_ids: List[int], category: str):
+        self._validate_site(site)
+        normalized_ids = self._normalize_book_ids(book_ids)
+        if not normalized_ids:
+            return
+        self.repository.update_books_category(site, normalized_ids, category)
+
+    def delete_books(self, site: str, book_ids: List[int]):
+        self._validate_site(site)
+        normalized_ids = self._normalize_book_ids(book_ids)
+        if not normalized_ids:
+            return
+        self.repository.delete_books(site, normalized_ids)
+
     def move_up(self, book_id: int) -> bool:
         return self.repository.move_book(book_id, "up")
 
@@ -57,3 +71,14 @@ class BookshelfService:
     def _validate_site(self, site: str):
         if site not in SUPPORTED_SITES:
             raise ValueError("书库记录的站点无效。")
+
+    def _normalize_book_ids(self, book_ids: List[int]) -> List[int]:
+        normalized_ids: List[int] = []
+        seen: set[int] = set()
+        for book_id in book_ids:
+            normalized_id = int(book_id)
+            if normalized_id in seen:
+                continue
+            seen.add(normalized_id)
+            normalized_ids.append(normalized_id)
+        return normalized_ids
