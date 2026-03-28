@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 from src.services.text_catalog import get_text_catalog
 
 TEXTS = get_text_catalog()
@@ -65,12 +65,26 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(34)
         header = self.table.horizontalHeader()
+        header_font = QtGui.QFont(self.table.font())
+        if header_font.pointSize() > 0:
+            header_font.setPointSize(header_font.pointSize() + 1)
+        elif header_font.pixelSize() > 0:
+            header_font.setPixelSize(header_font.pixelSize() + 2)
+        header_font.setWeight(QtGui.QFont.Weight.DemiBold)
+        header.setMinimumHeight(max(header.sizeHint().height(), 40))
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        for column in (0, 1, 2, 3):
+            header_item = self.table.horizontalHeaderItem(column)
+            if header_item is not None:
+                header_item.setFont(header_font)
+                if column in (1, 2, 3):
+                    header_item.setTextAlignment(int(QtCore.Qt.AlignmentFlag.AlignCenter))
         layout.addWidget(self.table, 1)
 
         detail_group = QtWidgets.QGroupBox(TEXTS.get_text("group.bookshelf_detail"))

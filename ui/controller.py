@@ -318,19 +318,33 @@ class MainController(QtCore.QObject):
         panel.subtitle_label.setText(self.texts.get_text("text.bookshelf_subtitle"))
         panel.empty_hint_label.setVisible(not books)
         panel.table.setRowCount(len(books))
+        left_alignment = (
+            QtCore.Qt.AlignmentFlag.AlignLeft
+            | QtCore.Qt.AlignmentFlag.AlignVCenter
+        )
+        centered_alignment = QtCore.Qt.AlignmentFlag.AlignCenter
         for row, book in enumerate(books):
-            self._set_table_item(row, 0, book.custom_name, book.id)
-            self._set_table_item(row, 1, book.category or "-", book.id)
-            self._set_table_item(row, 2, self._strategy_label(book.update_strategy), book.id)
-            self._set_table_item(row, 3, self._format_timestamp(book.updated_at), book.id)
+            self._set_table_item(row, 0, book.custom_name, book.id, alignment=left_alignment)
+            self._set_table_item(row, 1, book.category or "-", book.id, alignment=centered_alignment)
+            self._set_table_item(row, 2, self._strategy_label(book.update_strategy), book.id, alignment=centered_alignment)
+            self._set_table_item(row, 3, self._format_timestamp(book.updated_at), book.id, alignment=centered_alignment)
         panel.table.clearSelection()
         panel.table.setCurrentItem(None)
         self._selected_bookshelf_id = None
         self._sync_bookshelf_detail()
 
-    def _set_table_item(self, row: int, column: int, text: str, book_id: int):
+    def _set_table_item(
+        self,
+        row: int,
+        column: int,
+        text: str,
+        book_id: int,
+        alignment: Optional[QtCore.Qt.AlignmentFlag] = None,
+    ):
         item = QtWidgets.QTableWidgetItem(text)
         item.setData(QtCore.Qt.ItemDataRole.UserRole, book_id)
+        if alignment is not None:
+            item.setTextAlignment(int(alignment))
         self.window.bookshelf_panel.table.setItem(row, column, item)
 
     def _selected_bookshelf_book(self) -> Optional[BookshelfBook]:
@@ -377,7 +391,7 @@ class MainController(QtCore.QObject):
             parent=self.window,
             book=BookshelfBook(
                 site=site,
-                custom_name=self.window.task_name_edit.text().strip(),
+                custom_name=self._current_new_book_default_name(),
                 url=self.window.single_url_edit.text().strip(),
                 update_strategy=self._current_update_strategy().value,
                 category="",
@@ -454,11 +468,6 @@ class MainController(QtCore.QObject):
         self._set_task_mode(TaskMode.SINGLE_LINK)
         self._set_update_strategy(UpdateStrategy(book.update_strategy))
         self._refresh_task_mode_ui()
-        QtWidgets.QMessageBox.information(
-            self.window,
-            self.texts.get_text("dialog.fill_task_title"),
-            self.texts.get_text("dialog.fill_task_body"),
-        )
 
     def _select_bookshelf_book(self, book_id: Optional[int]):
         if book_id is None:
@@ -478,6 +487,15 @@ class MainController(QtCore.QObject):
             return self.texts.get_text(f"strategy.{UpdateStrategy(update_strategy).value}")
         except ValueError:
             return update_strategy
+
+    def _current_new_book_default_name(self) -> str:
+        task_name = self.window.task_name_edit.text().strip()
+        if task_name:
+            return task_name
+        current_book_name = self.window.book_value.text().strip()
+        if current_book_name and current_book_name != "-":
+            return current_book_name
+        return ""
 
     def _format_timestamp(self, value: str) -> str:
         if not value:
