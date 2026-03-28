@@ -5,6 +5,10 @@ from src.services.text_catalog import get_text_catalog
 
 TEXTS = get_text_catalog()
 
+CATEGORY_COLUMN_WIDTH = 110
+STRATEGY_COLUMN_WIDTH = 145
+UPDATED_AT_COLUMN_WIDTH = 175
+
 
 class BookshelfPanel(QtWidgets.QWidget):
     def __init__(self):
@@ -70,7 +74,7 @@ class BookshelfPanel(QtWidgets.QWidget):
         button_row.addStretch()
         layout.addLayout(button_row)
 
-        self.empty_hint_label = QtWidgets.QLabel(TEXTS.get_text("text.bookshelf_empty"))
+        self.empty_hint_label = QtWidgets.QLabel(TEXTS.get_text("text.bookshelf_empty_actionable"))
         self.empty_hint_label.setStyleSheet("color: #666;")
         layout.addWidget(self.empty_hint_label)
 
@@ -93,9 +97,12 @@ class BookshelfPanel(QtWidgets.QWidget):
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(1, CATEGORY_COLUMN_WIDTH)
+        header.resizeSection(2, STRATEGY_COLUMN_WIDTH)
+        header.resizeSection(3, UPDATED_AT_COLUMN_WIDTH)
         layout.addWidget(self.table, 1)
 
         self.detail_frame = QtWidgets.QFrame()

@@ -55,7 +55,7 @@ class MainController(QtCore.QObject):
         self.window.output_root_button.clicked.connect(self._choose_output_dir)
         self.window.chrome_path_button.clicked.connect(self._choose_chrome_path)
         self.window.bookshelf_panel.table.itemSelectionChanged.connect(self._sync_bookshelf_detail)
-        self.window.bookshelf_panel.table.itemDoubleClicked.connect(lambda _item: self._edit_bookshelf_book())
+        self.window.bookshelf_panel.table.itemDoubleClicked.connect(self._edit_bookshelf_book_from_item)
         self.window.bookshelf_panel.category_filter_combo.currentIndexChanged.connect(self._handle_bookshelf_filter_changed)
         self.window.bookshelf_panel.search_edit.textChanged.connect(self._handle_bookshelf_search_changed)
         self.window.bookshelf_panel.add_button.clicked.connect(self._add_bookshelf_book)
@@ -327,6 +327,12 @@ class MainController(QtCore.QObject):
         self._bookshelf_visible_count = len(visible_books)
         panel.title_label.setText(self.texts.get_text("text.bookshelf_title_site", site=site))
         panel.empty_hint_label.setVisible(not visible_books)
+        if visible_books:
+            panel.empty_hint_label.clear()
+        elif books:
+            panel.empty_hint_label.setText(self.texts.get_text("text.bookshelf_empty_filtered"))
+        else:
+            panel.empty_hint_label.setText(self.texts.get_text("text.bookshelf_empty_actionable"))
         table = panel.table
         table.blockSignals(True)
         table.setRowCount(len(visible_books))
@@ -552,6 +558,20 @@ class MainController(QtCore.QObject):
         book = self._selected_bookshelf_book()
         if book is None:
             return
+        self._edit_bookshelf_book_by_id(book.id)
+
+    def _edit_bookshelf_book_from_item(self, item: QtWidgets.QTableWidgetItem):
+        book_id = self._book_id_from_table_item(item)
+        if book_id is None:
+            return
+        self._edit_bookshelf_book_by_id(book_id)
+
+    def _edit_bookshelf_book_by_id(self, book_id: Optional[int]):
+        if book_id is None:
+            return
+        book = self.bookshelf_service.get_book(book_id)
+        if book is None:
+            return
         dialog = BookEditorDialog(
             site=book.site,
             categories=self.bookshelf_service.list_categories(book.site),
@@ -566,6 +586,15 @@ class MainController(QtCore.QObject):
             QtWidgets.QMessageBox.warning(self.window, self.texts.get_text("dialog.update_bookshelf_failed_title"), self.texts.get_text(str(exc), default=str(exc)))
             return
         self._refresh_bookshelf(selected_book_ids=[updated.id])
+
+    def _book_id_from_table_item(self, item: Optional[QtWidgets.QTableWidgetItem]) -> Optional[int]:
+        if item is None:
+            return None
+        row_item = self.window.bookshelf_panel.table.item(item.row(), 0) or item
+        book_id = row_item.data(QtCore.Qt.ItemDataRole.UserRole)
+        if not book_id:
+            return None
+        return int(book_id)
 
     def _quick_edit_bookshelf_category(self):
         book = self._selected_bookshelf_book()

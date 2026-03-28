@@ -105,6 +105,8 @@ text:
   bookshelf_title_site: '小说列表（{site}）'
   bookshelf_subtitle: ''
   bookshelf_empty: '暂无记录'
+  bookshelf_empty_actionable: '暂无记录，可先点“新增”'
+  bookshelf_empty_filtered: '当前筛选下暂无记录'
   bookshelf_multi_selected: '已选择 {count} 条记录'
   bookshelf_selection_stats: '已选 {selected} / 可见 {visible} / 全部 {total}'
   book_editor_hint: ''
