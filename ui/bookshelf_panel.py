@@ -23,13 +23,21 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.filter_label = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_filter"))
         self.category_filter_combo = QtWidgets.QComboBox()
         self.category_filter_combo.setMinimumWidth(170)
+        self.search_label = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_search"))
+        self.search_edit = QtWidgets.QLineEdit()
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setPlaceholderText(TEXTS.get_text("placeholder.bookshelf_search"))
+        self.search_edit.setMinimumWidth(220)
         header_row.addWidget(self.filter_label)
         header_row.addWidget(self.category_filter_combo)
+        header_row.addWidget(self.search_label)
+        header_row.addWidget(self.search_edit)
         layout.addLayout(header_row)
 
         button_row = QtWidgets.QHBoxLayout()
         self.add_button = QtWidgets.QPushButton(TEXTS.get_text("button.add"))
         self.edit_button = QtWidgets.QPushButton(TEXTS.get_text("button.edit"))
+        self.quick_edit_category_button = QtWidgets.QPushButton(TEXTS.get_text("button.quick_edit_category"))
         self.delete_button = QtWidgets.QPushButton(TEXTS.get_text("button.delete"))
         self.move_up_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_up"))
         self.move_down_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_down"))
@@ -37,6 +45,7 @@ class BookshelfPanel(QtWidgets.QWidget):
         for button in (
             self.add_button,
             self.edit_button,
+            self.quick_edit_category_button,
             self.delete_button,
             self.move_up_button,
             self.move_down_button,

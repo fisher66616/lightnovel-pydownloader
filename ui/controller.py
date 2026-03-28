@@ -55,13 +55,16 @@ class MainController(QtCore.QObject):
         self.window.bookshelf_panel.table.itemSelectionChanged.connect(self._sync_bookshelf_detail)
         self.window.bookshelf_panel.table.itemDoubleClicked.connect(lambda _item: self._edit_bookshelf_book())
         self.window.bookshelf_panel.category_filter_combo.currentIndexChanged.connect(self._handle_bookshelf_filter_changed)
+        self.window.bookshelf_panel.search_edit.textChanged.connect(self._handle_bookshelf_search_changed)
         self.window.bookshelf_panel.add_button.clicked.connect(self._add_bookshelf_book)
         self.window.bookshelf_panel.edit_button.clicked.connect(self._edit_bookshelf_book)
+        self.window.bookshelf_panel.quick_edit_category_button.clicked.connect(self._quick_edit_bookshelf_category)
         self.window.bookshelf_panel.delete_button.clicked.connect(self._delete_bookshelf_book)
         self.window.bookshelf_panel.move_up_button.clicked.connect(self._move_bookshelf_book_up)
         self.window.bookshelf_panel.move_down_button.clicked.connect(self._move_bookshelf_book_down)
         self.window.bookshelf_panel.fill_task_button.clicked.connect(self._fill_task_from_bookshelf)
 
+        self._bookshelf_search_text = ""
         self._load_initial_form()
         self._refresh_task_mode_ui()
         self._refresh_login_ui()
@@ -351,6 +354,7 @@ class MainController(QtCore.QObject):
         has_selection = book is not None
         for button in (
             panel.edit_button,
+            panel.quick_edit_category_button,
             panel.delete_button,
             panel.move_up_button,
             panel.move_down_button,
@@ -372,10 +376,13 @@ class MainController(QtCore.QObject):
 
     def _refresh_category_filter(self, site: str, books: list[BookshelfBook]):
         counts: dict[str, int] = {}
+        ordered_categories: list[str] = []
         uncategorized_count = 0
         for book in books:
             category = (book.category or "").strip()
             if category:
+                if category not in counts:
+                    ordered_categories.append(category)
                 counts[category] = counts.get(category, 0) + 1
             else:
                 uncategorized_count += 1
@@ -393,7 +400,7 @@ class MainController(QtCore.QObject):
                     "__uncategorized__",
                 )
             )
-        for category in sorted(counts, key=str.casefold):
+        for category in ordered_categories:
             items.append(
                 (
                     self.texts.get_text("filter.category_with_count", name=category, count=counts[category]),
@@ -417,13 +424,22 @@ class MainController(QtCore.QObject):
 
     def _filter_books(self, books: list[BookshelfBook]) -> list[BookshelfBook]:
         if self._bookshelf_filter_key == "__all__":
-            return books
-        if self._bookshelf_filter_key == "__uncategorized__":
-            return [book for book in books if not (book.category or "").strip()]
-        return [book for book in books if (book.category or "").strip() == self._bookshelf_filter_key]
+            filtered_books = books
+        elif self._bookshelf_filter_key == "__uncategorized__":
+            filtered_books = [book for book in books if not (book.category or "").strip()]
+        else:
+            filtered_books = [book for book in books if (book.category or "").strip() == self._bookshelf_filter_key]
+        keyword = self._bookshelf_search_text.casefold()
+        if not keyword:
+            return filtered_books
+        return [book for book in filtered_books if keyword in book.custom_name.casefold()]
 
     def _handle_bookshelf_filter_changed(self):
         self._bookshelf_filter_key = str(self.window.bookshelf_panel.category_filter_combo.currentData() or "__all__")
+        self._refresh_bookshelf(selected_book_id=self._selected_bookshelf_id)
+
+    def _handle_bookshelf_search_changed(self, text: str):
+        self._bookshelf_search_text = text.strip()
         self._refresh_bookshelf(selected_book_id=self._selected_bookshelf_id)
 
     def _add_bookshelf_book(self):
@@ -467,6 +483,42 @@ class MainController(QtCore.QObject):
             updated = self.bookshelf_service.update_book(dialog.build_book())
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(self.window, self.texts.get_text("dialog.update_bookshelf_failed_title"), self.texts.get_text(str(exc), default=str(exc)))
+            return
+        self._refresh_bookshelf(selected_book_id=updated.id)
+
+    def _quick_edit_bookshelf_category(self):
+        book = self._selected_bookshelf_book()
+        if book is None:
+            return
+        books = self.bookshelf_service.list_books(book.site)
+        categories = self._ordered_categories(books)
+        current_category = (book.category or "").strip()
+        if not current_category:
+            categories = ["", *categories]
+        if current_category and current_category not in categories:
+            categories = [current_category, *categories]
+        value, accepted = QtWidgets.QInputDialog.getItem(
+            self.window,
+            self.texts.get_text("dialog.quick_category_title"),
+            self.texts.get_text("dialog.quick_category_label"),
+            categories,
+            max(categories.index(current_category), 0) if current_category in categories else 0,
+            True,
+        )
+        if not accepted:
+            return
+        updated_book = self.bookshelf_service.get_book(book.id)
+        if updated_book is None:
+            return
+        updated_book.category = value.strip()
+        try:
+            updated = self.bookshelf_service.update_book(updated_book)
+        except ValueError as exc:
+            QtWidgets.QMessageBox.warning(
+                self.window,
+                self.texts.get_text("dialog.update_bookshelf_failed_title"),
+                self.texts.get_text(str(exc), default=str(exc)),
+            )
             return
         self._refresh_bookshelf(selected_book_id=updated.id)
 
@@ -567,8 +619,24 @@ class MainController(QtCore.QObject):
         return text.split(".")[0].replace("+00:00", " UTC")
 
     def _handle_site_changed(self, site: str):
+        self._bookshelf_filter_key = "__all__"
+        self.window.bookshelf_panel.search_edit.blockSignals(True)
+        self.window.bookshelf_panel.search_edit.clear()
+        self.window.bookshelf_panel.search_edit.blockSignals(False)
+        self._bookshelf_search_text = ""
         self._load_site_credentials(site)
         self._refresh_login_ui()
+
+    def _ordered_categories(self, books: list[BookshelfBook]) -> list[str]:
+        categories: list[str] = []
+        seen: set[str] = set()
+        for book in books:
+            category = (book.category or "").strip()
+            if not category or category in seen:
+                continue
+            seen.add(category)
+            categories.append(category)
+        return categories
 
     def _load_site_credentials(self, site: str):
         bundle = self.config_service.load_login_bundle(site)

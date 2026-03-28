@@ -8,6 +8,7 @@ button:
   open_log_dir: '打开日志目录'
   add: '新增'
   edit: '编辑'
+  quick_edit_category: '改分类'
   delete: '删除'
   move_up: '上移'
   move_down: '下移'
@@ -55,6 +56,7 @@ label:
   bookshelf_created_at: '创建时间'
   bookshelf_updated_at: '最后更新时间'
   bookshelf_filter: '分类'
+  bookshelf_search: '搜索'
 
 placeholder:
   task_name: '任务名（可选）'
@@ -68,6 +70,7 @@ placeholder:
   book_name: '书名'
   book_url: '粘贴详情页链接'
   book_note: '备注（可选）'
+  bookshelf_search: '搜索书名'
 
 option:
   task_mode_single_link: '单本链接'
@@ -154,3 +157,5 @@ dialog:
   keychain_unavailable_body: '当前环境还不能使用 macOS 钥匙串保存密码。\n\n你这次仍然可以继续运行任务，但密码不会被长期保存。'
   choose_output_dir_title: '选择输出目录'
   choose_chrome_path_title: '选择 Chrome 程序'
+  quick_category_title: '修改分类'
+  quick_category_label: '分类名称'
