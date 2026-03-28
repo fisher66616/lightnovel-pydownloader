@@ -223,6 +223,27 @@ class BookshelfRepository:
             )
         return True
 
+    def reorder_site(self, site: str, ordered_ids: List[int]):
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id
+                FROM books
+                WHERE site = ?
+                ORDER BY sort_order ASC, id ASC
+                """,
+                (site,),
+            ).fetchall()
+            current_ids = [int(row["id"]) for row in rows]
+            if sorted(current_ids) != sorted(ordered_ids):
+                raise ValueError("重排书库顺序时，记录列表不完整。")
+            now = self._now()
+            for index, book_id in enumerate(ordered_ids, start=1):
+                conn.execute(
+                    "UPDATE books SET sort_order = ?, updated_at = ? WHERE id = ?",
+                    (index, now, int(book_id)),
+                )
+
     def _next_sort_order(self, conn: sqlite3.Connection, site: str) -> int:
         row = conn.execute(
             "SELECT MAX(sort_order) AS max_sort FROM books WHERE site = ?",

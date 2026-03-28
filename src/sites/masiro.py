@@ -175,7 +175,7 @@ class Masiro(BaseSite):
                         await update_chapter(chapter)
                     if self.is_full_refetch():
                         chapter.last_update_time = last_update_time
-                        await self.build_content(chapter)
+                        await self.fetch_chapter_content(book, chapter)
                         await update_chapter(chapter)
                     elif (
                         self.is_refresh_changed()
@@ -185,13 +185,17 @@ class Masiro(BaseSite):
                         and chapter_data["cost"] <= read_config("max_purchase")
                     ):
                         # 打钱失败的 重新打钱并更新数据库
-                        await self.build_content(chapter)
+                        await self.fetch_chapter_content(book, chapter)
                         await update_chapter(chapter)
                     elif self.is_refresh_changed() and chapter.last_update_time < last_update_time:
                         # 章节有更新 重新爬取文本并更新数据库
                         chapter.last_update_time = last_update_time
-                        await self.build_content(chapter)
+                        await self.fetch_chapter_content(book, chapter)
                         await update_chapter(chapter)
+                    elif self.is_refresh_changed():
+                        self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name, reason="章节未变化")
+                    else:
+                        self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name, reason="only_new 已存在章节")
                 else:
                     # 新章节
                     chapter = Chapter()
@@ -203,7 +207,7 @@ class Masiro(BaseSite):
                     chapter.book_id = book.book_id
                     chapter.cost = chapter_data["cost"]
                     # 获取内容
-                    await self.build_content(chapter)
+                    await self.fetch_chapter_content(book, chapter)
                     # 更新数据库
                     await update_chapter(chapter)
                 order += 1

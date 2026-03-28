@@ -41,6 +41,7 @@ class Process(object):
             "fish": Fish,
         }
         for site in read_config("sites"):
+            log.info(f"[TASK] 开始请求站点 | 站点={site}")
             jar = aiohttp.CookieJar()
             conn = aiohttp.TCPConnector(ssl=False)
             async with aiohttp.ClientSession(connector=conn, cookie_jar=jar) as session:

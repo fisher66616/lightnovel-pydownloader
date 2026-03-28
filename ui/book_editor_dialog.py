@@ -21,7 +21,7 @@ class BookEditorDialog(QtWidgets.QDialog):
         self.site = site
         self.book = book
         self.setWindowTitle(TEXTS.get_text("button.edit") if book else TEXTS.get_text("button.add"))
-        self.resize(520, 380)
+        self.resize(520, 320)
         self._build_ui(categories)
         if book:
             self._load_book(book)
@@ -44,7 +44,7 @@ class BookEditorDialog(QtWidgets.QDialog):
         self.category_combo.setInsertPolicy(QtWidgets.QComboBox.InsertPolicy.NoInsert)
         self.note_edit = QtWidgets.QPlainTextEdit()
         self.note_edit.setPlaceholderText(TEXTS.get_text("placeholder.book_note"))
-        self.note_edit.setFixedHeight(110)
+        self.note_edit.setFixedHeight(84)
 
         form.addRow(TEXTS.get_text("label.site"), self.site_value)
         form.addRow(TEXTS.get_text("label.bookshelf_name"), self.name_edit)
@@ -53,11 +53,6 @@ class BookEditorDialog(QtWidgets.QDialog):
         form.addRow(TEXTS.get_text("label.bookshelf_category"), self.category_combo)
         form.addRow(TEXTS.get_text("label.bookshelf_note"), self.note_edit)
         layout.addLayout(form)
-
-        hint = QtWidgets.QLabel(TEXTS.get_text("text.book_editor_hint"))
-        hint.setWordWrap(True)
-        hint.setStyleSheet("color: #666;")
-        layout.addWidget(hint)
 
         buttons = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.StandardButton.Ok

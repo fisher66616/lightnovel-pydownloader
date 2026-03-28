@@ -1,5 +1,5 @@
 window:
-  title: '抓书姬'
+  title: ''
 
 button:
   browse: '浏览…'
@@ -18,11 +18,9 @@ group:
   login_info: '登录信息'
   common_settings: '常用设置'
   paths_browser: '保存位置与浏览器'
-  maintenance_tools: '维护工具'
   run_status: '运行状态'
   run_log: '运行日志'
-  bookshelf: '书库 / 小说管理'
-  bookshelf_detail: '记录详情'
+  bookshelf: '小说列表'
 
 label:
   site: '站点'
@@ -56,19 +54,20 @@ label:
   bookshelf_note: '备注'
   bookshelf_created_at: '创建时间'
   bookshelf_updated_at: '最后更新时间'
+  bookshelf_filter: '分类'
 
 placeholder:
-  task_name: '可选，给这次任务起个名字，书库回填时会自动带入'
-  single_url: '粘贴小说详情页链接'
+  task_name: '任务名（可选）'
+  single_url: '粘贴详情页链接'
   username: '输入账号'
   password: '输入密码'
   cookie: '粘贴完整 Cookie'
-  proxy_url: '例如：http://127.0.0.1:1081'
-  output_root: '选择保存小说结果的文件夹'
-  chrome_path: '真白萌账密登录时可指定 Chrome 程序'
-  book_name: '给这本书起一个你自己好认的名字'
-  book_url: '粘贴小说详情页链接'
-  book_note: '可以记录翻译进度、阅读状态或任何你以后想提醒自己的内容'
+  proxy_url: 'http://127.0.0.1:1081'
+  output_root: '选择输出文件夹'
+  chrome_path: '选择 Chrome 程序'
+  book_name: '书名'
+  book_url: '粘贴详情页链接'
+  book_note: '备注（可选）'
 
 option:
   task_mode_single_link: '单本链接'
@@ -78,27 +77,32 @@ option:
   login_mode_cookie: 'Cookie'
 
 strategy:
-  only_new: '只抓新章节'
+  only_new: '只提取新章节'
   refresh_changed: '更新变化章节'
-  full_refetch: '重新抓取整本'
+  full_refetch: '整本重新提取'
 
 text:
-  intro: '第一次使用建议按顺序完成 4 步：选站点、填任务、填登录信息、确认保存位置，然后点击“开始任务”。'
-  update_strategy_hint: '这个设置主要在“单本链接”任务里生效。收藏页和页码范围任务本轮先不单独区分每本书的更新策略。'
-  login_hint_masiro_cookie: '真白萌使用 Cookie 登录时，一般不需要额外设置 Chrome。'
-  login_hint_masiro_account: '真白萌使用账号密码登录时，需要本机可用的 Chrome；如果自动识别失败，请在下方手动选择。'
-  remember_password_hint: '勾选后，密码会优先保存到 macOS 钥匙串，不再默认明文写入配置文件。'
-  keychain_unavailable_hint: '当前环境还不能安全保存密码；本次输入的密码只会用于当前任务，不会长期保存。'
-  purchase_hint: '如果单章价格超过这个值，程序会自动跳过，不会继续购买。'
-  proxy_hint: '一般留空即可。只有你平时就需要代理访问站点时，才需要填写。'
-  output_root_hint: '默认会在你选择的输出目录里自动创建 epub、txt、images 三个子文件夹。'
-  chrome_path_hint: '只有真白萌使用账号密码登录时通常才需要设置 Chrome；使用 Cookie 登录时一般不用填。'
-  maintenance_placeholder: '这一块会在第二轮接通，第一轮先保留结构，不执行实际维护操作。'
-  log_hint: '如果任务失败，请先看最后几行日志，通常能直接看到是哪一步出了问题。'
-  bookshelf_title_site: '书库 / 小说管理（{site}）'
-  bookshelf_subtitle: '当前只显示所选站点的小说记录。'
-  bookshelf_empty: '这个站点的书库还是空的。你可以先点“新增”，也可以先在左侧填好一本书，再保存到书库。'
-  book_editor_hint: '默认更新策略只影响以后从书库回填到任务区时的单本更新方式，不会自动改掉你当前正在运行的任务。'
+  intro: ''
+  update_strategy_hint: ''
+  login_hint_masiro_cookie: ''
+  login_hint_masiro_account: '需可用 Chrome'
+  remember_password_hint: ''
+  keychain_unavailable_hint: '当前无法安全保存密码'
+  purchase_hint: ''
+  proxy_hint: ''
+  output_root_hint: ''
+  chrome_path_hint: ''
+  maintenance_placeholder: ''
+  log_hint: ''
+  bookshelf_title_site: '小说列表（{site}）'
+  bookshelf_subtitle: ''
+  bookshelf_empty: '暂无记录'
+  book_editor_hint: ''
+
+filter:
+  all_with_count: '全部（{count}）'
+  uncategorized_with_count: '未分类（{count}）'
+  category_with_count: '{name}（{count}）'
 
 status:
   idle: '空闲'

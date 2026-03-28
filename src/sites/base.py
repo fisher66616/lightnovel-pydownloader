@@ -18,6 +18,12 @@ from src.utils.log import log
 
 
 class BaseSite(ABC):
+    FIELD_LABELS = {
+        "site": "站点",
+        "book": "书籍",
+        "chapter": "章节",
+        "reason": "原因",
+    }
 
     def __init__(self, session: ClientSession):
         self.site: str = None
@@ -64,6 +70,29 @@ class BaseSite(ABC):
     def is_full_refetch(self) -> bool:
         return self.update_strategy == UpdateStrategy.FULL_REFETCH
 
+    def log_event(self, prefix: str, message: str, **fields):
+        parts = [f"[{prefix}] {message}"]
+        for key, value in fields.items():
+            if value is None or value == "":
+                continue
+            label = self.FIELD_LABELS.get(key, key)
+            parts.append(f"{label}={value}")
+        text = " | ".join(parts)
+        if prefix == "ERROR":
+            log.error(text)
+        else:
+            log.info(text)
+
+    async def fetch_chapter_content(self, book: Book, chapter: Chapter):
+        self.log_event(
+            "CHAPTER",
+            "开始处理章节",
+            site=self.site,
+            book=book.book_name or book.book_id,
+            chapter=chapter.chapter_name,
+        )
+        await self.build_content(chapter)
+
     async def run(self):
         try:
             # 校验cookie
@@ -79,7 +108,7 @@ class BaseSite(ABC):
             # 获取书籍列表
             await self.get_book_list()
             if not self.books:
-                log.info(f"{self.site}未获取到书籍")
+                self.log_event("SKIP", "跳过站点", site=self.site, reason="未获取到书籍")
                 return
             # 多线程开启爬虫
             tasks = [asyncio.create_task(self.start_task(book)) for book in self.books]
@@ -88,7 +117,7 @@ class BaseSite(ABC):
             if read_config("sign"):
                 await self.sign()
         except Exception as e:
-            log.info(str(e))
+            self.log_event("ERROR", "站点处理失败", site=self.site, reason=str(e))
             log.debug(traceback.format_exc())
 
     async def start_task(self, book: Book):
@@ -97,12 +126,13 @@ class BaseSite(ABC):
             async with self.threads:
                 # 构造完整书籍信息
                 await self.build_book_info(book)
+                self.log_event("BOOK", "开始处理书籍", site=self.site, book=book.book_name or book.book_id)
                 log.info(f"{book.book_name} {self.site}书籍信息已获取")
                 # 构造章节列表
                 log.info(f"{self.site}开始获取章节列表...")
                 await self.build_chapter_list(book)
                 if not book.chapters:
-                    log.info(f"{self.site}未获取到章节")
+                    self.log_event("SKIP", "跳过书籍", site=self.site, book=book.book_name or book.book_id, reason="未获取到章节")
                     return
                 log.info(f"{book.book_name} {self.site}章节信息已全部获取")
                 # 构造图片
@@ -114,8 +144,9 @@ class BaseSite(ABC):
                 # txt
                 if read_config("convert_txt"):
                     await loop.run_in_executor(None, build_txt, book)
+                self.log_event("EXPORT", "导出完成", site=self.site, book=book.book_name or book.book_id)
         except Exception as e:
-            log.info(str(e))
+            self.log_event("ERROR", "书籍处理失败", site=self.site, book=book.book_name or book.book_id, reason=str(e))
             log.debug(traceback.format_exc())
 
     @abstractmethod

@@ -127,11 +127,17 @@ class Yuri(BaseSite):
                     chapter.chapter_name = chapter_name
                     await update_chapter(chapter)
                 if self.is_full_refetch():
+                    self.log_event("CHAPTER", "开始处理章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name)
                     chapter.content = content
                     await update_chapter(chapter)
                 elif self.is_refresh_changed() and chapter.content != content:
+                    self.log_event("CHAPTER", "开始处理章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name)
                     chapter.content = content
                     await update_chapter(chapter)
+                elif self.is_refresh_changed():
+                    self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name, reason="章节未变化")
+                else:
+                    self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name, reason="only_new 已存在章节")
             else:
                 # 新章节
                 chapter = Chapter()
@@ -140,6 +146,7 @@ class Yuri(BaseSite):
                 chapter.chapter_id = chapter_id
                 chapter.chapter_name = chapter_name
                 chapter.book_id = book.book_id
+                self.log_event("CHAPTER", "开始处理章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name)
                 chapter.content = content
                 # 更新数据库
                 await update_chapter(chapter)

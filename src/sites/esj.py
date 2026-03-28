@@ -143,11 +143,11 @@ class Esj(BaseSite):
             log.debug(chapter_url)
             if not chapter_url or "esjzone" not in chapter_url:
                 # 外站跳过
-                log.info(f"esj检测到外站链接，跳过本章 {chapter_url}")
+                self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter_url or "-", reason="外站链接")
                 continue
             chapter_id = None if not re.search(r"/(\d+)\.html", chapter_url) else re.search(r"/(\d+)\.html", chapter_url).group(1)
             if not chapter_id:
-                log.info(f"esj章节地址配置错误，跳过本章 {chapter_url}")
+                self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter_url or "-", reason="章节地址配置错误")
                 continue
             chapter_name = common.first(chapter_body.xpath("@data-title"))
             # 匹配数据库已存章节
@@ -161,8 +161,19 @@ class Esj(BaseSite):
                     chapter.chapter_name = chapter_name
                     await update_chapter(chapter)
                 if self.is_full_refetch():
-                    await self.build_content(chapter)
+                    await self.fetch_chapter_content(book, chapter)
                     await update_chapter(chapter)
+                elif self.is_refresh_changed():
+                    self.log_event(
+                        "SKIP",
+                        "跳过章节",
+                        site=self.site,
+                        book=book.book_name or book.book_id,
+                        chapter=chapter.chapter_name,
+                        reason="refresh_changed 当前站点按 only_new 处理",
+                    )
+                else:
+                    self.log_event("SKIP", "跳过章节", site=self.site, book=book.book_name or book.book_id, chapter=chapter.chapter_name, reason="only_new 已存在章节")
             else:
                 # 新章节
                 chapter = Chapter()
@@ -172,7 +183,7 @@ class Esj(BaseSite):
                 chapter.chapter_name = chapter_name
                 chapter.book_id = book.book_id
                 # 获取内容
-                await self.build_content(chapter)
+                await self.fetch_chapter_content(book, chapter)
                 # 更新数据库
                 await update_chapter(chapter)
             order += 1
@@ -185,10 +196,11 @@ class Esj(BaseSite):
         text = await request.get(url, self.header, self.session)
         if not text:
             log.debug(url)
+            self.log_event("SKIP", "跳过章节", site=self.site, book=chapter.book_id, chapter=chapter.chapter_name, reason="章节正文请求失败")
             return
         chapter.content = common.get_html(text, "esj", "content")
         if not chapter.content:
-            log.info(f"esj章节无内容 {chapter.chapter_name}")
+            self.log_event("SKIP", "跳过章节", site=self.site, book=chapter.book_id, chapter=chapter.chapter_name, reason="章节无内容")
             return
         if "btn-send-pw" in chapter.content or "內文目前施工中" in chapter.content:
             # 使用配置的密码
@@ -201,21 +213,21 @@ class Esj(BaseSite):
         if not pwd:
             pwd = read_config("esj_book_pwd").get(int(chapter.chapter_id))
         if not pwd:
-            log.info(f"esj密码章节，跳过本章 {chapter.chapter_name}")
+            self.log_event("SKIP", "跳过章节", site=self.site, book=chapter.book_id, chapter=chapter.chapter_name, reason="未配置密码")
             return
         # 获取auth
         auth_url = f"{self.domain}/forum/{chapter.chapter_id}/{chapter.book_id}.html"
         auth_res = await request.post_data(auth_url, self.header, {"plxf": "getAuthToken"}, self.session)
         if not auth_res:
             log.debug(auth_res)
-            log.info(f"esj密码章节，跳过本章 {chapter.chapter_name}")
+            self.log_event("SKIP", "跳过章节", site=self.site, book=chapter.book_id, chapter=chapter.chapter_name, reason="密码章节鉴权失败")
             return
         self.header["authorization"] = auth_res["text"].replace("<JinJing>", "").replace("</JinJing>", "")
         pwd_url = f"{self.domain}/inc/forum_pw.php"
         pwd_text = await request.post_data(pwd_url, self.header, {"pw": pwd}, self.session)
         if not pwd_text or json.loads(pwd_text["text"]).get("status") != 200:
             log.debug(pwd_text)
-            log.info(f"esj密码错误 {chapter.chapter_name}")
+            self.log_event("SKIP", "跳过章节", site=self.site, book=chapter.book_id, chapter=chapter.chapter_name, reason="章节密码错误")
             return
         log.info(f"esj密码正确，重新获取本章内容 {chapter.chapter_name}")
         await self.build_content(chapter)

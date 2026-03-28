@@ -41,6 +41,10 @@ class BookshelfService:
     def move_down(self, book_id: int) -> bool:
         return self.repository.move_book(book_id, "down")
 
+    def reorder_site(self, site: str, ordered_ids: List[int]):
+        self._validate_site(site)
+        self.repository.reorder_site(site, ordered_ids)
+
     def _validate_book(self, book: BookshelfBook):
         self._validate_site(book.site)
         if not book.custom_name.strip():

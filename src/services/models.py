@@ -60,3 +60,5 @@ class TaskStatus:
     state: TaskState = TaskState.IDLE
     message: str = "空闲"
     site: str = ""
+    book: str = ""
+    chapter: str = ""
