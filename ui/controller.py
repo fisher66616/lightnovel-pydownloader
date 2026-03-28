@@ -36,6 +36,8 @@ class MainController(QtCore.QObject):
         self.window = MainWindow()
         self._selected_bookshelf_ids: list[int] = []
         self._bookshelf_filter_key = "__all__"
+        self._bookshelf_total_count = 0
+        self._bookshelf_visible_count = 0
 
         self.log_signal.connect(self.window.log_text.appendPlainText)
         self.state_signal.connect(self._apply_status)
@@ -62,6 +64,9 @@ class MainController(QtCore.QObject):
         self.window.bookshelf_panel.bulk_edit_category_button.clicked.connect(self._bulk_edit_bookshelf_category)
         self.window.bookshelf_panel.delete_button.clicked.connect(self._delete_bookshelf_book)
         self.window.bookshelf_panel.bulk_delete_button.clicked.connect(self._bulk_delete_bookshelf)
+        self.window.bookshelf_panel.select_all_button.clicked.connect(self._select_all_visible_bookshelf)
+        self.window.bookshelf_panel.clear_selection_button.clicked.connect(self._clear_bookshelf_selection)
+        self.window.bookshelf_panel.invert_selection_button.clicked.connect(self._invert_bookshelf_selection)
         self.window.bookshelf_panel.move_up_button.clicked.connect(self._move_bookshelf_book_up)
         self.window.bookshelf_panel.move_down_button.clicked.connect(self._move_bookshelf_book_down)
         self.window.bookshelf_panel.fill_task_button.clicked.connect(self._fill_task_from_bookshelf)
@@ -318,6 +323,8 @@ class MainController(QtCore.QObject):
         books = self.bookshelf_service.list_books(site)
         self._refresh_category_filter(site, books)
         visible_books = self._filter_books(books)
+        self._bookshelf_total_count = len(books)
+        self._bookshelf_visible_count = len(visible_books)
         panel.title_label.setText(self.texts.get_text("text.bookshelf_title_site", site=site))
         panel.empty_hint_label.setVisible(not visible_books)
         table = panel.table
@@ -369,12 +376,44 @@ class MainController(QtCore.QObject):
             return None
         return self.bookshelf_service.get_book(selected_ids[0])
 
+    def _visible_bookshelf_ids(self) -> list[int]:
+        table = self.window.bookshelf_panel.table
+        visible_ids: list[int] = []
+        for row in range(table.rowCount()):
+            item = table.item(row, 0)
+            if item is None:
+                continue
+            book_id = item.data(QtCore.Qt.ItemDataRole.UserRole)
+            if not book_id:
+                continue
+            visible_ids.append(int(book_id))
+        return visible_ids
+
+    def _apply_bookshelf_selection(self, book_ids: list[int]):
+        table = self.window.bookshelf_panel.table
+        table.blockSignals(True)
+        restored_ids = self._restore_bookshelf_selection(book_ids)
+        table.blockSignals(False)
+        self._selected_bookshelf_ids = restored_ids
+        self._sync_bookshelf_detail()
+
+    def _update_bookshelf_selection_stats(self, selected_count: int):
+        self.window.bookshelf_panel.selection_stats_label.setText(
+            self.texts.get_text(
+                "text.bookshelf_selection_stats",
+                selected=selected_count,
+                visible=self._bookshelf_visible_count,
+                total=self._bookshelf_total_count,
+            )
+        )
+
     def _sync_bookshelf_detail(self):
         panel = self.window.bookshelf_panel
         selected_ids = self._selected_bookshelf_ids_in_view()
         selected_count = len(selected_ids)
         single_selected = selected_count == 1
         multi_selected = selected_count > 1
+        has_visible_rows = self._bookshelf_visible_count > 0
         panel.edit_button.setEnabled(single_selected)
         panel.quick_edit_category_button.setEnabled(single_selected)
         panel.delete_button.setEnabled(single_selected)
@@ -383,6 +422,10 @@ class MainController(QtCore.QObject):
         panel.fill_task_button.setEnabled(single_selected)
         panel.bulk_edit_category_button.setEnabled(multi_selected)
         panel.bulk_delete_button.setEnabled(multi_selected)
+        panel.select_all_button.setEnabled(has_visible_rows)
+        panel.invert_selection_button.setEnabled(has_visible_rows)
+        panel.clear_selection_button.setEnabled(selected_count > 0)
+        self._update_bookshelf_selection_stats(selected_count)
         if not single_selected:
             if multi_selected:
                 panel.selection_summary_value.setText(
@@ -622,6 +665,18 @@ class MainController(QtCore.QObject):
             return
         self.bookshelf_service.delete_books(self._current_site(), [book.id for book in books if book.id is not None])
         self._refresh_bookshelf(selected_book_ids=[])
+
+    def _select_all_visible_bookshelf(self):
+        self._apply_bookshelf_selection(self._visible_bookshelf_ids())
+
+    def _clear_bookshelf_selection(self):
+        self._apply_bookshelf_selection([])
+
+    def _invert_bookshelf_selection(self):
+        visible_ids = self._visible_bookshelf_ids()
+        selected_ids = set(self._selected_bookshelf_ids_in_view())
+        inverted_ids = [book_id for book_id in visible_ids if book_id not in selected_ids]
+        self._apply_bookshelf_selection(inverted_ids)
 
     def _move_bookshelf_book_up(self):
         self._move_bookshelf_book("up")

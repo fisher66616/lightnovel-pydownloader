@@ -12,6 +12,9 @@ button:
   bulk_edit_category: '批量改分类'
   delete: '删除'
   bulk_delete: '批量删除'
+  select_all: '全选'
+  clear_selection: '清空选择'
+  invert_selection: '反选'
   move_up: '上移'
   move_down: '下移'
   fill_task: '回填到任务区'
@@ -103,6 +106,7 @@ text:
   bookshelf_subtitle: ''
   bookshelf_empty: '暂无记录'
   bookshelf_multi_selected: '已选择 {count} 条记录'
+  bookshelf_selection_stats: '已选 {selected} / 可见 {visible} / 全部 {total}'
   book_editor_hint: ''
 
 filter:

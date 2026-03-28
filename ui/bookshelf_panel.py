@@ -19,6 +19,9 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.title_label = QtWidgets.QLabel(TEXTS.get_text("group.bookshelf"))
         self.title_label.setStyleSheet("font-weight: 600;")
         header_row.addWidget(self.title_label)
+        self.selection_stats_label = QtWidgets.QLabel(TEXTS.get_text("text.bookshelf_selection_stats", selected=0, visible=0, total=0))
+        self.selection_stats_label.setStyleSheet("color: #666;")
+        header_row.addWidget(self.selection_stats_label)
         header_row.addStretch()
         self.filter_label = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_filter"))
         self.category_filter_combo = QtWidgets.QComboBox()
@@ -41,6 +44,9 @@ class BookshelfPanel(QtWidgets.QWidget):
         self.bulk_edit_category_button = QtWidgets.QPushButton(TEXTS.get_text("button.bulk_edit_category"))
         self.delete_button = QtWidgets.QPushButton(TEXTS.get_text("button.delete"))
         self.bulk_delete_button = QtWidgets.QPushButton(TEXTS.get_text("button.bulk_delete"))
+        self.select_all_button = QtWidgets.QPushButton(TEXTS.get_text("button.select_all"))
+        self.clear_selection_button = QtWidgets.QPushButton(TEXTS.get_text("button.clear_selection"))
+        self.invert_selection_button = QtWidgets.QPushButton(TEXTS.get_text("button.invert_selection"))
         self.move_up_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_up"))
         self.move_down_button = QtWidgets.QPushButton(TEXTS.get_text("button.move_down"))
         self.fill_task_button = QtWidgets.QPushButton(TEXTS.get_text("button.fill_task"))
@@ -51,6 +57,9 @@ class BookshelfPanel(QtWidgets.QWidget):
             self.bulk_edit_category_button,
             self.delete_button,
             self.bulk_delete_button,
+            self.select_all_button,
+            self.clear_selection_button,
+            self.invert_selection_button,
             self.move_up_button,
             self.move_down_button,
             self.fill_task_button,
