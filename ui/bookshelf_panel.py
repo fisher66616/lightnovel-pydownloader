@@ -16,6 +16,7 @@ class BookshelfPanel(QtWidgets.QWidget):
         layout.setSpacing(8)
 
         header_row = QtWidgets.QHBoxLayout()
+        header_row.setSpacing(6)
         self.title_label = QtWidgets.QLabel(TEXTS.get_text("group.bookshelf"))
         self.title_label.setStyleSheet("font-weight: 600;")
         header_row.addWidget(self.title_label)
@@ -25,19 +26,18 @@ class BookshelfPanel(QtWidgets.QWidget):
         header_row.addStretch()
         self.filter_label = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_filter"))
         self.category_filter_combo = QtWidgets.QComboBox()
-        self.category_filter_combo.setMinimumWidth(170)
-        self.search_label = QtWidgets.QLabel(TEXTS.get_text("label.bookshelf_search"))
+        self.category_filter_combo.setMinimumWidth(150)
         self.search_edit = QtWidgets.QLineEdit()
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setPlaceholderText(TEXTS.get_text("placeholder.bookshelf_search"))
-        self.search_edit.setMinimumWidth(220)
+        self.search_edit.setMinimumWidth(190)
         header_row.addWidget(self.filter_label)
         header_row.addWidget(self.category_filter_combo)
-        header_row.addWidget(self.search_label)
-        header_row.addWidget(self.search_edit)
+        header_row.addWidget(self.search_edit, 1)
         layout.addLayout(header_row)
 
         button_row = QtWidgets.QHBoxLayout()
+        button_row.setSpacing(4)
         self.add_button = QtWidgets.QPushButton(TEXTS.get_text("button.add"))
         self.edit_button = QtWidgets.QPushButton(TEXTS.get_text("button.edit"))
         self.quick_edit_category_button = QtWidgets.QPushButton(TEXTS.get_text("button.quick_edit_category"))
@@ -64,6 +64,8 @@ class BookshelfPanel(QtWidgets.QWidget):
             self.move_down_button,
             self.fill_task_button,
         ):
+            button.setSizePolicy(QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Fixed)
+            button.setStyleSheet("padding: 2px 6px;")
             button_row.addWidget(button)
         button_row.addStretch()
         layout.addLayout(button_row)

@@ -11,7 +11,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(TEXTS.get_text("window.title"))
-        self.resize(1180, 760)
+        self.resize(1280, 760)
         self._build_ui()
 
     def _build_ui(self):
@@ -21,22 +21,27 @@ class MainWindow(QtWidgets.QMainWindow):
         root_layout.setContentsMargins(10, 10, 10, 10)
         root_layout.setSpacing(10)
 
-        root_layout.addWidget(self._build_form_panel(), 4)
+        form_panel = self._build_form_panel()
+        form_panel.setMinimumWidth(440)
+        root_layout.addWidget(form_panel, 5)
         right_panel = QtWidgets.QWidget()
+        right_panel.setMinimumWidth(620)
         right_layout = QtWidgets.QVBoxLayout(right_panel)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
         self.bookshelf_panel = BookshelfPanel()
         right_layout.addWidget(self.bookshelf_panel, 3)
         right_layout.addWidget(self._build_log_panel(), 1)
-        root_layout.addWidget(right_panel, 6)
+        root_layout.addWidget(right_panel, 7)
 
     def _build_form_panel(self) -> QtWidgets.QWidget:
         panel = QtWidgets.QScrollArea()
         panel.setWidgetResizable(True)
         panel.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         panel.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        panel.setMinimumWidth(440)
         content = QtWidgets.QWidget()
+        content.setMinimumWidth(420)
         panel.setWidget(content)
         layout = QtWidgets.QVBoxLayout(content)
         layout.setSpacing(10)
@@ -53,6 +58,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.task_mode_combo.addItem(TEXTS.get_text("option.task_mode_single_link"), "single_link")
         self.task_mode_combo.addItem(TEXTS.get_text("option.task_mode_collection_page"), "collection_page")
         self.task_mode_combo.addItem(TEXTS.get_text("option.task_mode_page_range"), "page_range")
+        self.task_mode_combo.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.task_name_edit = QtWidgets.QLineEdit()
         self.task_name_edit.setPlaceholderText(TEXTS.get_text("placeholder.task_name"))
         self.single_url_edit = QtWidgets.QLineEdit()
@@ -60,26 +66,32 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_page_spin = QtWidgets.QSpinBox()
         self.start_page_spin.setMinimum(1)
         self.start_page_spin.setMaximum(999999)
+        self.start_page_spin.setFixedWidth(92)
         self.end_page_spin = QtWidgets.QSpinBox()
         self.end_page_spin.setMinimum(1)
         self.end_page_spin.setMaximum(999999)
+        self.end_page_spin.setFixedWidth(92)
         self.page_range_widget = QtWidgets.QWidget()
         page_layout = QtWidgets.QHBoxLayout(self.page_range_widget)
         page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(6)
         page_layout.addWidget(QtWidgets.QLabel(TEXTS.get_text("label.page_start")))
         page_layout.addWidget(self.start_page_spin)
         page_layout.addWidget(QtWidgets.QLabel(TEXTS.get_text("label.page_end")))
         page_layout.addWidget(self.end_page_spin)
+        page_layout.addStretch()
         self.update_strategy_combo = QtWidgets.QComboBox()
         self.update_strategy_combo.addItem(TEXTS.get_text("strategy.only_new"), "only_new")
         self.update_strategy_combo.addItem(TEXTS.get_text("strategy.refresh_changed"), "refresh_changed")
         self.update_strategy_combo.addItem(TEXTS.get_text("strategy.full_refetch"), "full_refetch")
+        self.update_strategy_combo.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents)
         task_layout.addRow(TEXTS.get_text("label.site"), self.site_combo)
         task_layout.addRow(TEXTS.get_text("label.task_name"), self.task_name_edit)
         task_layout.addRow(TEXTS.get_text("label.task_mode"), self.task_mode_combo)
         task_layout.addRow(TEXTS.get_text("label.single_url"), self.single_url_edit)
         task_layout.addRow(TEXTS.get_text("label.page_range"), self.page_range_widget)
         task_layout.addRow(TEXTS.get_text("label.update_strategy"), self.update_strategy_combo)
+        self._configure_form_layout(task_layout)
         layout.addWidget(task_group)
 
         login_group = QtWidgets.QGroupBox(TEXTS.get_text("group.login_info"))
@@ -110,9 +122,11 @@ class MainWindow(QtWidgets.QMainWindow):
         account_form_layout = QtWidgets.QFormLayout(self.account_form)
         account_form_layout.addRow(TEXTS.get_text("label.username"), self.username_edit)
         account_form_layout.addRow(TEXTS.get_text("label.password"), self.password_edit)
+        self._configure_form_layout(account_form_layout)
         self.cookie_form = QtWidgets.QWidget()
         cookie_form_layout = QtWidgets.QFormLayout(self.cookie_form)
         cookie_form_layout.addRow(TEXTS.get_text("label.cookie"), self.cookie_edit)
+        self._configure_form_layout(cookie_form_layout)
         self.login_stack = QtWidgets.QStackedWidget()
         self.login_stack.addWidget(self.account_form)
         self.login_stack.addWidget(self.cookie_form)
@@ -156,6 +170,7 @@ class MainWindow(QtWidgets.QMainWindow):
         settings_layout.addLayout(switch_row)
         proxy_form = QtWidgets.QFormLayout()
         proxy_form.addRow(TEXTS.get_text("label.proxy_url"), self.proxy_edit)
+        self._configure_form_layout(proxy_form, minimum_label_width=118)
         settings_layout.addLayout(proxy_form)
         layout.addWidget(settings_group)
 
@@ -181,6 +196,7 @@ class MainWindow(QtWidgets.QMainWindow):
         chrome_layout.addWidget(self.chrome_path_button)
         path_form.addRow(TEXTS.get_text("label.output_root"), output_row)
         path_form.addRow(TEXTS.get_text("label.chrome_path"), chrome_row)
+        self._configure_form_layout(path_form, minimum_label_width=118)
         paths_layout.addLayout(path_form)
         layout.addWidget(paths_group)
 
@@ -227,3 +243,23 @@ class MainWindow(QtWidgets.QMainWindow):
         log_layout.addWidget(self.log_text)
         layout.addWidget(log_group, 1)
         return panel
+
+    def _configure_form_layout(self, form_layout: QtWidgets.QFormLayout, minimum_label_width: int = 110):
+        form_layout.setFieldGrowthPolicy(QtWidgets.QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+        form_layout.setRowWrapPolicy(QtWidgets.QFormLayout.RowWrapPolicy.DontWrapRows)
+        label_width = minimum_label_width
+        for row in range(form_layout.rowCount()):
+            item = form_layout.itemAt(row, QtWidgets.QFormLayout.ItemRole.LabelRole)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is None:
+                continue
+            label_width = max(label_width, widget.sizeHint().width())
+        for row in range(form_layout.rowCount()):
+            item = form_layout.itemAt(row, QtWidgets.QFormLayout.ItemRole.LabelRole)
+            if item is None:
+                continue
+            widget = item.widget()
+            if widget is not None:
+                widget.setMinimumWidth(label_width)
