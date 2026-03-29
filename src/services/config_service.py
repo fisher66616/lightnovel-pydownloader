@@ -148,32 +148,7 @@ class ConfigService:
         advance_doc["convert_txt"] = bool(form.convert_txt)
         advance_doc["update_strategy"] = update_strategy_value
 
-        login_info = main_doc.setdefault("login_info", CommentedMap())
-        site_login = login_info.setdefault(form.site, CommentedMap())
-        if form.site in ("esj", "masiro"):
-            site_login.setdefault("username", "")
-            site_login.setdefault("password", "")
-            site_login.setdefault("cookie", "")
-            if form.login_mode == LoginMode.COOKIE:
-                site_login["username"] = ""
-                site_login["password"] = ""
-                site_login["cookie"] = form.cookie.strip()
-                self._save_login_preferences(
-                    form.site,
-                    remember_account=False,
-                    remember_password=False,
-                    password_storage="",
-                    password_account="",
-                )
-            else:
-                self._persist_account_credentials(form, site_login)
-        elif form.site == "lk":
-            site_login.setdefault("username", "")
-            site_login.setdefault("password", "")
-            self._persist_account_credentials(form, site_login)
-        elif form.site == "yuri":
-            site_login.setdefault("cookie", "")
-            site_login["cookie"] = form.cookie.strip()
+        self._apply_login_preferences_to_doc(main_doc, form)
 
         self._dump_yaml_doc(get_config_file_path("config.yaml"), main_doc)
         self._dump_yaml_doc(get_config_file_path("advance.yaml"), advance_doc)
@@ -185,6 +160,11 @@ class ConfigService:
         normalized_runtime = normalize_config_data(runtime_config)
         self._apply_form_credentials_to_runtime(normalized_runtime, form)
         return normalized_runtime
+
+    def save_login_preferences(self, form: TaskForm) -> None:
+        main_doc = self._load_yaml_doc(get_config_file_path("config.yaml"))
+        self._apply_login_preferences_to_doc(main_doc, form)
+        self._dump_yaml_doc(get_config_file_path("config.yaml"), main_doc)
 
     def get_output_dir(self) -> str:
         config = normalize_config_data(load_config_files())
@@ -250,6 +230,34 @@ class ConfigService:
         site_login["username"] = username if remember_account else ""
         site_login["password"] = form.password if remember_password else ""
         self._save_login_preferences(form.site, remember_account, remember_password, "", "")
+
+    def _apply_login_preferences_to_doc(self, main_doc, form: TaskForm):
+        login_info = main_doc.setdefault("login_info", CommentedMap())
+        site_login = login_info.setdefault(form.site, CommentedMap())
+        if form.site in ("esj", "masiro"):
+            site_login.setdefault("username", "")
+            site_login.setdefault("password", "")
+            site_login.setdefault("cookie", "")
+            if form.login_mode == LoginMode.COOKIE:
+                site_login["username"] = ""
+                site_login["password"] = ""
+                site_login["cookie"] = form.cookie.strip()
+                self._save_login_preferences(
+                    form.site,
+                    remember_account=False,
+                    remember_password=False,
+                    password_storage="",
+                    password_account="",
+                )
+            else:
+                self._persist_account_credentials(form, site_login)
+        elif form.site == "lk":
+            site_login.setdefault("username", "")
+            site_login.setdefault("password", "")
+            self._persist_account_credentials(form, site_login)
+        elif form.site == "yuri":
+            site_login.setdefault("cookie", "")
+            site_login["cookie"] = form.cookie.strip()
 
     def _save_login_preferences(
         self,

@@ -38,6 +38,7 @@ class MainController(QtCore.QObject):
         self._bookshelf_filter_key = "__all__"
         self._bookshelf_total_count = 0
         self._bookshelf_visible_count = 0
+        self._loaded_site: Optional[str] = None
 
         self.log_signal.connect(self.window.log_text.appendPlainText)
         self.state_signal.connect(self._apply_status)
@@ -184,8 +185,8 @@ class MainController(QtCore.QObject):
         self.window.site_value.setText(site)
         self._refresh_bookshelf()
 
-    def _collect_form(self) -> TaskForm:
-        site = self._current_site()
+    def _collect_form(self, site_override: Optional[str] = None) -> TaskForm:
+        site = site_override or self._current_site()
         login_mode = self._current_login_mode() if site in ("esj", "masiro") else (
             LoginMode.ACCOUNT_PASSWORD if site == "lk" else LoginMode.COOKIE
         )
@@ -840,6 +841,12 @@ class MainController(QtCore.QObject):
         return text.split(".")[0].replace("+00:00", " UTC")
 
     def _handle_site_changed(self, site: str):
+        previous_site = self._loaded_site
+        if previous_site and (
+            self.window.remember_account_checkbox.isChecked()
+            or self.window.remember_password_checkbox.isChecked()
+        ):
+            self._persist_login_preferences_from_ui(site=previous_site)
         self._bookshelf_filter_key = "__all__"
         self._selected_bookshelf_ids = []
         self.window.bookshelf_panel.search_edit.blockSignals(True)
@@ -889,17 +896,25 @@ class MainController(QtCore.QObject):
         self.window.cookie_edit.setPlainText(cookie)
         self._set_checkbox(self.window.remember_account_checkbox, remember_account)
         self._set_checkbox(self.window.remember_password_checkbox, remember_password)
+        self._loaded_site = site
 
     def _set_checkbox(self, checkbox: QtWidgets.QCheckBox, checked: bool):
         checkbox.blockSignals(True)
         checkbox.setChecked(checked)
         checkbox.blockSignals(False)
 
+    def _persist_login_preferences_from_ui(self, site: Optional[str] = None):
+        form = self._collect_form(site_override=site)
+        self.config_service.save_login_preferences(form)
+
     def _handle_remember_account_toggled(self, checked: bool):
         if not checked and self.window.remember_password_checkbox.isChecked():
             self._set_checkbox(self.window.remember_password_checkbox, False)
+        self._persist_login_preferences_from_ui()
 
     def _handle_remember_password_toggled(self, checked: bool):
         if not checked:
+            self._persist_login_preferences_from_ui()
             return
         self._set_checkbox(self.window.remember_account_checkbox, True)
+        self._persist_login_preferences_from_ui()
