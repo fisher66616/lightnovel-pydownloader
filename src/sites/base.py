@@ -2,10 +2,13 @@ import asyncio
 import traceback
 from abc import ABC, abstractmethod
 from asyncio import Semaphore
+from threading import Event
 from typing import List, Dict
+from typing import Optional
 
 from aiohttp import ClientSession
 
+from src.core.cancellation import TaskCancelled, raise_if_cancelled
 from src.db import cookie
 from src.epub.epub import build_epub
 from src.epub.txt import build_txt
@@ -28,6 +31,7 @@ class BaseSite(ABC):
     def __init__(self, session: ClientSession):
         self.site: str = None
         self.session: ClientSession = session
+        self.cancel_event: Optional[Event] = None
         self.cookie: Cookie = None
         self.books: List[Book] = []
         self._had_task_failures: bool = False
@@ -85,6 +89,7 @@ class BaseSite(ABC):
             log.info(text)
 
     async def fetch_chapter_content(self, book: Book, chapter: Chapter):
+        self.check_cancel_requested()
         self.log_event(
             "CHAPTER",
             "开始处理章节",
@@ -93,6 +98,10 @@ class BaseSite(ABC):
             chapter=chapter.chapter_name,
         )
         await self.build_content(chapter)
+        self.check_cancel_requested()
+
+    def check_cancel_requested(self):
+        raise_if_cancelled(self.cancel_event)
 
     def _should_reuse_persisted_cookie(self) -> bool:
         if self.site == "lk":
@@ -108,6 +117,7 @@ class BaseSite(ABC):
 
     async def run(self):
         try:
+            self.check_cancel_requested()
             # 仅在 Cookie 模式下优先复用数据库中的旧 cookie/token
             is_effective_cookie = False
             if self._should_reuse_persisted_cookie():
@@ -115,24 +125,35 @@ class BaseSite(ABC):
                 if self.cookie and self.cookie.cookie:
                     self.header["Cookie"] = self.cookie.cookie
                 is_effective_cookie = False if not self.cookie else await self.valid_cookie()
+            self.check_cancel_requested()
             if not is_effective_cookie:
                 # 登录
                 log.info(f"{self.site}开始登录...")
                 await self.login()
                 log.info(f"{self.site}登录成功")
+            self.check_cancel_requested()
             # 获取书籍列表
             await self.get_book_list()
+            self.check_cancel_requested()
             if not self.books:
                 self.log_event("SKIP", "跳过站点", site=self.site, reason="未获取到书籍")
                 return
             # 多线程开启爬虫
+            self.check_cancel_requested()
             tasks = [asyncio.create_task(self.start_task(book)) for book in self.books]
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
+            self.check_cancel_requested()
             # 签到
             if read_config("sign"):
+                self.check_cancel_requested()
                 await self.sign()
+                self.check_cancel_requested()
+            if self.cancel_event and self.cancel_event.is_set():
+                raise TaskCancelled()
             if self._had_task_failures:
                 raise RuntimeError(f"{self.site}存在书籍处理失败")
+        except TaskCancelled:
+            raise
         except Exception as e:
             self.log_event("ERROR", "站点处理失败", site=self.site, reason=str(e))
             log.debug(traceback.format_exc())
@@ -141,28 +162,39 @@ class BaseSite(ABC):
     async def start_task(self, book: Book):
         try:
             loop = asyncio.get_running_loop()
+            self.check_cancel_requested()
             async with self.threads:
+                self.check_cancel_requested()
                 # 构造完整书籍信息
+                self.check_cancel_requested()
                 await self.build_book_info(book)
+                self.check_cancel_requested()
                 self.log_event("BOOK", "开始处理书籍", site=self.site, book=book.book_name or book.book_id)
                 log.info(f"{book.book_name} {self.site}书籍信息已获取")
                 # 构造章节列表
                 log.info(f"{self.site}开始获取章节列表...")
+                self.check_cancel_requested()
                 await self.build_chapter_list(book)
+                self.check_cancel_requested()
                 if not book.chapters:
                     self.log_event("SKIP", "跳过书籍", site=self.site, book=book.book_name or book.book_id, reason="未获取到章节")
                     return
                 log.info(f"{book.book_name} {self.site}章节信息已全部获取")
                 # 构造图片
                 for chapter in book.chapters:
+                    self.check_cancel_requested()
                     if chapter.content:
                         await self.build_pic_list(chapter)
+                        self.check_cancel_requested()
                 # epub
+                self.check_cancel_requested()
                 await loop.run_in_executor(None, build_epub, book)
                 # txt
                 if read_config("convert_txt"):
                     await loop.run_in_executor(None, build_txt, book)
                 self.log_event("EXPORT", "导出完成", site=self.site, book=book.book_name or book.book_id)
+        except TaskCancelled:
+            raise
         except Exception as e:
             self._had_task_failures = True
             self.log_event("ERROR", "书籍处理失败", site=self.site, book=book.book_name or book.book_id, reason=str(e))

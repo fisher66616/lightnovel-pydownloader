@@ -24,6 +24,8 @@ class UpdateStrategy(str, Enum):
 class TaskState(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
     SUCCESS = "success"
     FAILED = "failed"
 

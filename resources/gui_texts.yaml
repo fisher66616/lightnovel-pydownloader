@@ -4,6 +4,7 @@ window:
 button:
   browse: '浏览…'
   start_task: '开始任务'
+  stop_task: '结束任务'
   open_output_dir: '打开输出目录'
   open_log_dir: '打开日志目录'
   add: '新增'
@@ -119,6 +120,8 @@ filter:
 status:
   idle: '空闲'
   running: '运行中'
+  cancelling: '正在结束任务...'
+  cancelled: '已取消'
   success: '已完成'
   failed: '失败'
 
@@ -144,7 +147,11 @@ dialog:
   incomplete_info_title: '请先补全信息'
   task_running_title: '任务仍在运行'
   task_running_body: '{message}\n\n请等当前任务结束后再试一次。'
+  confirm_stop_task_title: '结束当前任务'
+  confirm_stop_task_body: '将尽快在安全位置结束当前任务，是否继续？'
   task_failed_title: '任务没有完成'
+  task_cancelled_title: '任务已取消'
+  task_cancelled_body: '当前任务已在安全位置结束。'
   task_failed_no_login: '登录信息还不完整，所以任务没有开始。\n\n请回到左侧补全账号、密码或 Cookie，然后再试一次。'
   task_failed_cookie_invalid: '你现在填写的 Cookie 看起来已经失效了。\n\n请重新获取新的 Cookie 后再试一次。'
   task_failed_chrome_missing: '程序没有成功找到可用的 Chrome。\n\n如果你正在用真白萌账号密码登录，请在“保存位置与浏览器”里手动选择 Chrome 路径后再试。'

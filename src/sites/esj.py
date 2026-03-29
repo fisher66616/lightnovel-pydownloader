@@ -138,6 +138,7 @@ class Esj(BaseSite):
         chapters = []
         order = 1
         for chapter_xpath in book.chapter_xpaths:
+            self.check_cancel_requested()
             chapter_body = html.fromstring(html.tostring(chapter_xpath))
             chapter_url = common.first(chapter_body.xpath("@href"))
             log.debug(chapter_url)

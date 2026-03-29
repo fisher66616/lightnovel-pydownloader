@@ -50,6 +50,7 @@ class MainController(QtCore.QObject):
         self.window.remember_account_checkbox.toggled.connect(self._handle_remember_account_toggled)
         self.window.remember_password_checkbox.toggled.connect(self._handle_remember_password_toggled)
         self.window.start_button.clicked.connect(self._start_task)
+        self.window.stop_button.clicked.connect(self._request_stop_task)
         self.window.open_output_button.clicked.connect(self._open_output_dir)
         self.window.open_log_button.clicked.connect(self._open_log_dir)
         self.window.output_root_button.clicked.connect(self._choose_output_dir)
@@ -196,6 +197,7 @@ class MainController(QtCore.QObject):
                 on_finished=self.finished_signal.emit,
             )
             self.window.start_button.setEnabled(False)
+            self.window.stop_button.setEnabled(True)
         except ValueError as exc:
             QtWidgets.QMessageBox.warning(
                 self.window,
@@ -215,6 +217,8 @@ class MainController(QtCore.QObject):
         text_map = {
             TaskState.IDLE: self.texts.get_text("status.idle"),
             TaskState.RUNNING: self.texts.get_text("status.running"),
+            TaskState.CANCELLING: self.texts.get_text("status.cancelling"),
+            TaskState.CANCELLED: self.texts.get_text("status.cancelled"),
             TaskState.SUCCESS: self.texts.get_text("status.success"),
             TaskState.FAILED: self.texts.get_text("status.failed"),
         }
@@ -225,6 +229,9 @@ class MainController(QtCore.QObject):
 
     def _task_finished(self, success: bool):
         self.window.start_button.setEnabled(True)
+        self.window.stop_button.setEnabled(False)
+        if self.task_service.get_status().state == TaskState.CANCELLED:
+            return
         if not success:
             self.window.status_value.setText(self.texts.get_text("status.failed"))
             QtWidgets.QMessageBox.warning(
@@ -232,6 +239,24 @@ class MainController(QtCore.QObject):
                 self.texts.get_text("dialog.task_failed_title"),
                 self._friendly_runtime_message(self.task_service.get_status().message),
             )
+
+    def _request_stop_task(self):
+        if not self.task_service.is_running():
+            return
+        confirmed = QtWidgets.QMessageBox.question(
+            self.window,
+            self.texts.get_text("dialog.confirm_stop_task_title"),
+            self.texts.get_text("dialog.confirm_stop_task_body"),
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
+        if confirmed != QtWidgets.QMessageBox.StandardButton.Yes:
+            return
+        requested = self.task_service.request_stop()
+        if not requested:
+            return
+        self.window.stop_button.setEnabled(False)
+        self.window.status_value.setText(self.texts.get_text("status.cancelling"))
 
     def _open_output_dir(self):
         self._open_local_path(self.config_service.get_output_dir())

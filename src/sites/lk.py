@@ -214,6 +214,7 @@ class LK(BaseSite):
         chapters = []
         order = 1
         for chapter_data in book.chapter_datas:
+            self.check_cancel_requested()
             chapter_id = str(chapter_data["aid"])
             chapter_name = chapter_data["title"]
             last_update_time =  common.get_timestamp(chapter_data["time"])

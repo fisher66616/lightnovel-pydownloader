@@ -157,6 +157,7 @@ class Masiro(BaseSite):
             return
         for parent_chapter in parent_chapter_json:
             for chapter_data in chapter_json:
+                self.check_cancel_requested()
                 if chapter_data["parent_id"] != parent_chapter["id"]:
                     continue
                 chapter_id = str(chapter_data["id"])

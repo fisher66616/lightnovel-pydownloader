@@ -192,9 +192,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         button_row = QtWidgets.QHBoxLayout()
         self.start_button = QtWidgets.QPushButton(TEXTS.get_text("button.start_task"))
+        self.stop_button = QtWidgets.QPushButton(TEXTS.get_text("button.stop_task"))
+        self.stop_button.setEnabled(False)
         self.open_output_button = QtWidgets.QPushButton(TEXTS.get_text("button.open_output_dir"))
         self.open_log_button = QtWidgets.QPushButton(TEXTS.get_text("button.open_log_dir"))
         button_row.addWidget(self.start_button)
+        button_row.addWidget(self.stop_button)
         button_row.addWidget(self.open_output_button)
         button_row.addWidget(self.open_log_button)
         button_row.addStretch()

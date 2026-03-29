@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from threading import Lock, Thread
+from threading import Event, Lock, Thread
 from time import perf_counter
 from typing import Callable, Optional
 
 from src.app.runtime import run_sync
+from src.core.cancellation import TaskCancelled
 from src.services.config_service import ConfigService
 from src.services.models import LoginMode, TaskForm, TaskMode, TaskState, TaskStatus, UpdateStrategy
 from src.utils.log import log
@@ -36,12 +37,36 @@ class TaskService:
         self._thread: Optional[Thread] = None
         self._lock = Lock()
         self._status = TaskStatus()
+        self._stop_event = Event()
+        self._on_state: Optional[Callable[[TaskStatus], None]] = None
+        self._running_site = ""
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
     def get_status(self) -> TaskStatus:
         return self._status
+
+    def is_stop_requested(self) -> bool:
+        return self._stop_event.is_set()
+
+    def request_stop(self) -> bool:
+        with self._lock:
+            if not self.is_running():
+                return False
+            if self._stop_event.is_set():
+                return True
+            self._stop_event.set()
+            callback = self._on_state
+            site = self._running_site or self._status.site
+        log.info(self._structured_message("TASK", "收到结束任务请求", site=site))
+        self._update_state(
+            TaskState.CANCELLING,
+            "正在结束任务...",
+            site,
+            callback,
+        )
+        return True
 
     def start_task(
         self,
@@ -57,6 +82,9 @@ class TaskService:
             errors = self.config_service.validate_form(form)
             if errors:
                 raise ValueError("\n".join(errors))
+            self._stop_event.clear()
+            self._on_state = on_state
+            self._running_site = form.site
 
             worker = Thread(
                 target=self._run_task,
@@ -84,9 +112,19 @@ class TaskService:
             lambda line: self._handle_log_line(line, on_log, on_state, summary)
         )
         success = False
+        cancelled = False
         try:
             runtime_config = self.config_service.save_form(form)
-            self._update_state(TaskState.RUNNING, "任务运行中", form.site, on_state, book="-", chapter="-")
+            if self._stop_event.is_set():
+                raise TaskCancelled()
+            self._update_state(
+                TaskState.RUNNING,
+                "任务运行中",
+                form.site,
+                on_state,
+                book="-",
+                chapter="-",
+            )
             log.info(self._structured_message("TASK", "任务开始", site=form.site))
             log.info(
                 self._structured_message(
@@ -102,14 +140,33 @@ class TaskService:
                     started_at=summary["started_at"],
                 )
             )
-            success = run_sync(config_data=runtime_config, enable_scheduler=False)
-            if success:
+            success = run_sync(
+                config_data=runtime_config,
+                enable_scheduler=False,
+                cancel_event=self._stop_event,
+            )
+            if self._stop_event.is_set():
+                cancelled = True
+                success = False
+                self._update_state(TaskState.CANCELLED, "任务已取消", form.site, on_state)
+            elif success:
                 self._update_state(TaskState.SUCCESS, "任务已完成", form.site, on_state)
             else:
                 self._update_state(TaskState.FAILED, "任务失败，请查看日志", form.site, on_state)
+        except TaskCancelled:
+            cancelled = True
+            success = False
+            log.info(self._structured_message("TASK", "任务已取消", site=form.site))
+            self._update_state(TaskState.CANCELLED, "任务已取消", form.site, on_state)
         except Exception as exc:
-            log.error(self._structured_message("ERROR", "任务启动失败", site=form.site, reason=str(exc)))
-            self._update_state(TaskState.FAILED, str(exc), form.site, on_state)
+            if self._stop_event.is_set():
+                cancelled = True
+                success = False
+                log.info(self._structured_message("TASK", "任务已取消", site=form.site))
+                self._update_state(TaskState.CANCELLED, "任务已取消", form.site, on_state)
+            else:
+                log.error(self._structured_message("ERROR", "任务启动失败", site=form.site, reason=str(exc)))
+                self._update_state(TaskState.FAILED, str(exc), form.site, on_state)
         finally:
             ended_at = self._now_text()
             duration = f"{perf_counter() - summary['timer_started']:.1f}秒"
@@ -129,6 +186,8 @@ class TaskService:
                 on_finished(success)
             with self._lock:
                 self._thread = None
+                self._on_state = None
+                self._running_site = ""
 
     def _handle_log_line(
         self,
