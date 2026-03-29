@@ -90,7 +90,6 @@ def normalize_config_data(config_data: Dict[str, Any]) -> Dict[str, Any]:
         runtime_config["update_strategy"] = "only_new"
     else:
         runtime_config["update_strategy"] = update_strategy
-    _apply_secure_login_credentials(runtime_config)
     return runtime_config
 
 
@@ -157,32 +156,3 @@ def _ensure_config_file(filename: str):
         with open(config_path, "a", encoding="utf-8") as f:
             for block_text in missing_blocks:
                 f.write(block_text)
-
-
-def _apply_secure_login_credentials(runtime_config: Dict[str, Any]):
-    login_info = runtime_config.get("login_info")
-    if not isinstance(login_info, dict):
-        return
-    try:
-        from src.services.gui_state_service import GuiStateService
-        from src.services.keychain_store import KeychainStore
-    except Exception:
-        return
-
-    store = KeychainStore()
-    if not store.is_available():
-        return
-
-    state_service = GuiStateService()
-    for site, site_login in login_info.items():
-        if not isinstance(site_login, dict):
-            continue
-        site_state = state_service.get_site_login_state(str(site))
-        if not site_state.get("remember_password"):
-            continue
-        account = str(site_state.get("password_account") or site_login.get("username") or "").strip()
-        if not account or site_login.get("password"):
-            continue
-        password = store.load_password(str(site), account)
-        if password:
-            site_login["password"] = password

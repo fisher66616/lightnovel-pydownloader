@@ -93,13 +93,27 @@ class BaseSite(ABC):
         )
         await self.build_content(chapter)
 
+    def _should_reuse_persisted_cookie(self) -> bool:
+        if self.site == "lk":
+            return False
+        if self.site == "yuri":
+            return True
+        if self.site in ("esj", "masiro"):
+            login_info = (read_config("login_info") or {}).get(self.site, {})
+            username = str(login_info.get("username", "") or "").strip()
+            password = str(login_info.get("password", "") or "").strip()
+            return not (username and password)
+        return True
+
     async def run(self):
         try:
-            # 校验cookie
-            self.cookie = await cookie.get_cookie(self.site)
-            if self.cookie and self.cookie.cookie:
-                self.header["Cookie"] = self.cookie.cookie
-            is_effective_cookie = False if not self.cookie else await self.valid_cookie()
+            # 仅在 Cookie 模式下优先复用数据库中的旧 cookie/token
+            is_effective_cookie = False
+            if self._should_reuse_persisted_cookie():
+                self.cookie = await cookie.get_cookie(self.site)
+                if self.cookie and self.cookie.cookie:
+                    self.header["Cookie"] = self.cookie.cookie
+                is_effective_cookie = False if not self.cookie else await self.valid_cookie()
             if not is_effective_cookie:
                 # 登录
                 log.info(f"{self.site}开始登录...")

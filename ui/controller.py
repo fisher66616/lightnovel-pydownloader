@@ -149,7 +149,6 @@ class MainController(QtCore.QObject):
     def _refresh_login_ui(self):
         site = self._current_site()
         login_mode = self._current_login_mode()
-        password_storage_available = self.config_service.is_password_storage_available()
 
         if site == "lk":
             self.window.login_mode_combo.hide()
@@ -180,8 +179,8 @@ class MainController(QtCore.QObject):
         account_mode_active = account_site and (site == "lk" or login_mode == LoginMode.ACCOUNT_PASSWORD)
         self.window.remember_account_checkbox.setVisible(account_mode_active)
         self.window.remember_password_checkbox.setVisible(account_mode_active)
-        self.window.remember_password_checkbox.setEnabled(account_mode_active and password_storage_available)
-        self.window.keychain_status_label.setVisible(account_mode_active and not password_storage_available)
+        self.window.remember_password_checkbox.setEnabled(account_mode_active)
+        self.window.keychain_status_label.hide()
         self.window.site_value.setText(site)
         self._refresh_bookshelf()
 
@@ -904,11 +903,3 @@ class MainController(QtCore.QObject):
         if not checked:
             return
         self._set_checkbox(self.window.remember_account_checkbox, True)
-        if self.config_service.is_password_storage_available():
-            return
-        self._set_checkbox(self.window.remember_password_checkbox, False)
-        QtWidgets.QMessageBox.information(
-            self.window,
-            self.texts.get_text("dialog.keychain_unavailable_title"),
-            self.texts.get_text("dialog.keychain_unavailable_body"),
-        )

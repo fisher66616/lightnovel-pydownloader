@@ -8,7 +8,6 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
 from src.services.gui_state_service import GuiStateService
-from src.services.keychain_store import KeychainStore
 from src.services.models import LoginMode, SUPPORTED_SITES, TaskForm, TaskMode, UpdateStrategy
 from src.utils.config import get_config_file_path, load_config_files, normalize_config_data
 from src.utils.paths import get_default_output_root, get_log_dir
@@ -20,7 +19,6 @@ class ConfigService:
         self.yaml.preserve_quotes = True
         self.yaml.width = 4096
         self.gui_state_service = GuiStateService()
-        self.credential_store = KeychainStore()
 
     def load_form(self) -> TaskForm:
         config = normalize_config_data(load_config_files())
@@ -152,29 +150,27 @@ class ConfigService:
 
         login_info = main_doc.setdefault("login_info", CommentedMap())
         site_login = login_info.setdefault(form.site, CommentedMap())
-        previous_state = self.gui_state_service.get_site_login_state(form.site)
-        previous_password_account = str(previous_state.get("password_account") or site_login.get("username") or "")
-        previous_plain_password = str(site_login.get("password", "") or "")
-
         if form.site in ("esj", "masiro"):
             site_login.setdefault("username", "")
             site_login.setdefault("password", "")
             site_login.setdefault("cookie", "")
             if form.login_mode == LoginMode.COOKIE:
+                site_login["username"] = ""
+                site_login["password"] = ""
                 site_login["cookie"] = form.cookie.strip()
                 self._save_login_preferences(
                     form.site,
-                    remember_account=previous_state.get("remember_account", False),
-                    remember_password=previous_state.get("remember_password", False),
-                    password_storage=str(previous_state.get("password_storage", "") or ""),
-                    password_account=str(previous_state.get("password_account", "") or ""),
+                    remember_account=False,
+                    remember_password=False,
+                    password_storage="",
+                    password_account="",
                 )
             else:
-                self._persist_account_credentials(form, site_login, previous_password_account, previous_plain_password)
+                self._persist_account_credentials(form, site_login)
         elif form.site == "lk":
             site_login.setdefault("username", "")
             site_login.setdefault("password", "")
-            self._persist_account_credentials(form, site_login, previous_password_account, previous_plain_password)
+            self._persist_account_credentials(form, site_login)
         elif form.site == "yuri":
             site_login.setdefault("cookie", "")
             site_login["cookie"] = form.cookie.strip()
@@ -197,9 +193,6 @@ class ConfigService:
     def get_log_dir(self) -> str:
         return str(get_log_dir())
 
-    def is_password_storage_available(self) -> bool:
-        return self.credential_store.is_available()
-
     def load_login_bundle(self, site: str, config: Dict[str, Any] | None = None) -> Dict[str, Any]:
         config = config or normalize_config_data(load_config_files())
         login_info = (config.get("login_info") or {}).get(site, {})
@@ -207,17 +200,14 @@ class ConfigService:
         login_mode = self._infer_login_mode(site, login_info, gui_state)
         stored_username = str(login_info.get("username", "") or "")
         stored_password = str(login_info.get("password", "") or "")
-        remember_account = bool(gui_state.get("remember_account") or stored_username)
-        remember_password = bool(gui_state.get("remember_password") or stored_password)
-        keychain_account = str(gui_state.get("password_account") or stored_username or "").strip()
-        if remember_password and not stored_password and keychain_account:
-            stored_password = self.credential_store.load_password(site, keychain_account) or ""
+        remember_account = bool(gui_state.get("remember_account"))
+        remember_password = bool(gui_state.get("remember_password")) and remember_account
         return {
             "login_mode": login_mode,
             "remember_account": remember_account,
             "remember_password": remember_password,
             "username": stored_username if remember_account else "",
-            "password": stored_password if remember_password else "",
+            "password": stored_password if remember_account and remember_password else "",
             "cookie": str(login_info.get("cookie", "") or ""),
         }
 
@@ -253,36 +243,13 @@ class ConfigService:
         self,
         form: TaskForm,
         site_login: CommentedMap,
-        previous_password_account: str,
-        previous_plain_password: str,
     ):
         remember_account = bool(form.remember_account)
         remember_password = bool(form.remember_password and remember_account)
         username = form.username.strip()
         site_login["username"] = username if remember_account else ""
-        if remember_password and self.credential_store.is_available() and username:
-            if previous_password_account and previous_password_account != username:
-                self.credential_store.delete_password(form.site, previous_password_account)
-            if form.password:
-                self.credential_store.save_password(form.site, username, form.password)
-                site_login["password"] = ""
-                self._save_login_preferences(form.site, True, True, "keychain", username)
-                return
-            if self.credential_store.load_password(form.site, username):
-                site_login["password"] = ""
-                self._save_login_preferences(form.site, True, True, "keychain", username)
-                return
-
-        if previous_password_account and (not remember_password or previous_password_account != username):
-            self.credential_store.delete_password(form.site, previous_password_account)
-
-        if remember_password and previous_plain_password and not self.credential_store.is_available():
-            site_login["password"] = previous_plain_password
-            self._save_login_preferences(form.site, remember_account, True, "legacy_yaml", username or previous_password_account)
-            return
-
-        site_login["password"] = ""
-        self._save_login_preferences(form.site, remember_account, False, "", "")
+        site_login["password"] = form.password if remember_password else ""
+        self._save_login_preferences(form.site, remember_account, remember_password, "", "")
 
     def _save_login_preferences(
         self,
