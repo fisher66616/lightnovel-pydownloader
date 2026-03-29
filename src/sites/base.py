@@ -30,6 +30,7 @@ class BaseSite(ABC):
         self.session: ClientSession = session
         self.cookie: Cookie = None
         self.books: List[Book] = []
+        self._had_task_failures: bool = False
         # 默认线程 最大写死8线程别把网站玩崩了
         thread_counts = 8 if read_config("max_thread") > 8 else read_config("max_thread")
         if read_config("push_calibre")["enabled"] or read_config("max_thread") < 1:
@@ -130,9 +131,12 @@ class BaseSite(ABC):
             # 签到
             if read_config("sign"):
                 await self.sign()
+            if self._had_task_failures:
+                raise RuntimeError(f"{self.site}存在书籍处理失败")
         except Exception as e:
             self.log_event("ERROR", "站点处理失败", site=self.site, reason=str(e))
             log.debug(traceback.format_exc())
+            raise
 
     async def start_task(self, book: Book):
         try:
@@ -160,6 +164,7 @@ class BaseSite(ABC):
                     await loop.run_in_executor(None, build_txt, book)
                 self.log_event("EXPORT", "导出完成", site=self.site, book=book.book_name or book.book_id)
         except Exception as e:
+            self._had_task_failures = True
             self.log_event("ERROR", "书籍处理失败", site=self.site, book=book.book_name or book.book_id, reason=str(e))
             log.debug(traceback.format_exc())
 
