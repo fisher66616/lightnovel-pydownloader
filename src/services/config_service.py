@@ -8,9 +8,11 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 
 from src.services.gui_state_service import GuiStateService
-from src.services.models import LoginMode, SUPPORTED_SITES, TaskForm, TaskMode, UpdateStrategy
+from src.services.models import LoginMode, TaskForm, TaskMode, UpdateStrategy
 from src.utils.config import get_config_file_path, load_config_files, normalize_config_data
 from src.utils.paths import get_default_output_root, get_log_dir
+
+GUI_SUPPORTED_SITES = ("esj", "masiro", "lk")
 
 
 class ConfigService:
@@ -23,7 +25,7 @@ class ConfigService:
     def load_form(self) -> TaskForm:
         config = normalize_config_data(load_config_files())
         sites = config.get("sites") or ["esj"]
-        site = sites[0] if sites[0] in SUPPORTED_SITES else "esj"
+        site = sites[0] if sites[0] in GUI_SUPPORTED_SITES else "esj"
         white_list = config.get("white_list") or []
 
         task_mode = TaskMode.SINGLE_LINK
@@ -46,12 +48,12 @@ class ConfigService:
             start_page=int(config.get("start_page", 1) or 1),
             end_page=int(config.get("end_page", 1) or 1),
             update_strategy=UpdateStrategy(str(config.get("update_strategy", UpdateStrategy.ONLY_NEW.value))),
-            login_mode=login_bundle["login_mode"],
+            login_mode=LoginMode.ACCOUNT_PASSWORD,
             remember_account=login_bundle["remember_account"],
             remember_password=login_bundle["remember_password"],
             username=login_bundle["username"],
             password=login_bundle["password"],
-            cookie=login_bundle["cookie"],
+            cookie="",
             chrome_path=str(config.get("chrome_path", "") or ""),
             output_root=str(config.get("output_root", "") or ""),
             is_purchase=bool(config.get("is_purchase", False)),
@@ -69,7 +71,7 @@ class ConfigService:
             else str(form.update_strategy)
         )
 
-        if form.site not in SUPPORTED_SITES:
+        if form.site not in GUI_SUPPORTED_SITES:
             errors.append("validation.unsupported_site")
 
         if form.task_mode == TaskMode.SINGLE_LINK and not form.single_url.strip():
@@ -81,17 +83,12 @@ class ConfigService:
             if form.end_page < form.start_page:
                 errors.append("validation.end_page_before_start")
 
-        if form.site in ("esj", "masiro"):
-            if form.login_mode == LoginMode.COOKIE:
-                if not form.cookie.strip():
-                    errors.append("validation.cookie_required")
-            elif not form.username.strip() or not form.password.strip():
-                errors.append("validation.account_password_required")
-        elif form.site == "lk":
+        if form.site in GUI_SUPPORTED_SITES:
             if not form.username.strip() or not form.password.strip():
-                errors.append("validation.lk_account_password_required")
-        elif form.site == "yuri" and not form.cookie.strip():
-            errors.append("validation.yuri_cookie_required")
+                if form.site == "lk":
+                    errors.append("validation.lk_account_password_required")
+                else:
+                    errors.append("validation.account_password_required")
 
         if form.max_purchase < 0:
             errors.append("validation.max_purchase_negative")
@@ -177,38 +174,16 @@ class ConfigService:
         config = config or normalize_config_data(load_config_files())
         login_info = (config.get("login_info") or {}).get(site, {})
         gui_state = self.gui_state_service.get_site_login_state(site)
-        login_mode = self._infer_login_mode(site, login_info, gui_state)
         stored_username = str(login_info.get("username", "") or "")
         stored_password = str(login_info.get("password", "") or "")
         remember_account = bool(gui_state.get("remember_account"))
         remember_password = bool(gui_state.get("remember_password")) and remember_account
         return {
-            "login_mode": login_mode,
             "remember_account": remember_account,
             "remember_password": remember_password,
             "username": stored_username if remember_account else "",
             "password": stored_password if remember_account and remember_password else "",
-            "cookie": str(login_info.get("cookie", "") or ""),
         }
-
-    def _infer_login_mode(
-        self,
-        site: str,
-        login_info: Dict[str, Any],
-        gui_state: Dict[str, Any] | None = None,
-    ) -> LoginMode:
-        gui_state = gui_state or {}
-        if site in ("esj", "masiro"):
-            if login_info.get("username") and (
-                login_info.get("password")
-                or gui_state.get("remember_password")
-                or gui_state.get("remember_account")
-            ):
-                return LoginMode.ACCOUNT_PASSWORD
-            return LoginMode.COOKIE
-        if site == "yuri":
-            return LoginMode.COOKIE
-        return LoginMode.ACCOUNT_PASSWORD
 
     def _load_yaml_doc(self, path: str):
         with open(path, "r", encoding="utf-8") as f:
@@ -234,30 +209,12 @@ class ConfigService:
     def _apply_login_preferences_to_doc(self, main_doc, form: TaskForm):
         login_info = main_doc.setdefault("login_info", CommentedMap())
         site_login = login_info.setdefault(form.site, CommentedMap())
-        if form.site in ("esj", "masiro"):
+        if form.site in GUI_SUPPORTED_SITES:
             site_login.setdefault("username", "")
             site_login.setdefault("password", "")
             site_login.setdefault("cookie", "")
-            if form.login_mode == LoginMode.COOKIE:
-                site_login["username"] = ""
-                site_login["password"] = ""
-                site_login["cookie"] = form.cookie.strip()
-                self._save_login_preferences(
-                    form.site,
-                    remember_account=False,
-                    remember_password=False,
-                    password_storage="",
-                    password_account="",
-                )
-            else:
-                self._persist_account_credentials(form, site_login)
-        elif form.site == "lk":
-            site_login.setdefault("username", "")
-            site_login.setdefault("password", "")
             self._persist_account_credentials(form, site_login)
-        elif form.site == "yuri":
-            site_login.setdefault("cookie", "")
-            site_login["cookie"] = form.cookie.strip()
+            site_login["cookie"] = ""
 
     def _save_login_preferences(
         self,
@@ -278,22 +235,10 @@ class ConfigService:
     def _apply_form_credentials_to_runtime(self, runtime_config: Dict[str, Any], form: TaskForm):
         login_info = runtime_config.setdefault("login_info", {})
         site_login = login_info.setdefault(form.site, {})
-        if form.site in ("esj", "masiro"):
+        if form.site in GUI_SUPPORTED_SITES:
             site_login.setdefault("username", "")
             site_login.setdefault("password", "")
             site_login.setdefault("cookie", "")
-            if form.login_mode == LoginMode.COOKIE:
-                site_login["cookie"] = form.cookie.strip()
-                site_login["username"] = ""
-                site_login["password"] = ""
-            else:
-                site_login["username"] = form.username.strip()
-                site_login["password"] = form.password
-        elif form.site == "lk":
-            site_login.setdefault("username", "")
-            site_login.setdefault("password", "")
             site_login["username"] = form.username.strip()
             site_login["password"] = form.password
-        elif form.site == "yuri":
-            site_login.setdefault("cookie", "")
-            site_login["cookie"] = form.cookie.strip()
+            site_login["cookie"] = ""

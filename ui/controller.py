@@ -46,7 +46,6 @@ class MainController(QtCore.QObject):
 
         self.window.site_combo.currentTextChanged.connect(self._handle_site_changed)
         self.window.task_mode_combo.currentIndexChanged.connect(self._refresh_task_mode_ui)
-        self.window.login_mode_combo.currentIndexChanged.connect(self._refresh_login_ui)
         self.window.purchase_checkbox.toggled.connect(self._refresh_login_ui)
         self.window.remember_account_checkbox.toggled.connect(self._handle_remember_account_toggled)
         self.window.remember_password_checkbox.toggled.connect(self._handle_remember_password_toggled)
@@ -100,10 +99,8 @@ class MainController(QtCore.QObject):
         self.window.site_value.setText(form.site)
         self._apply_login_bundle(
             form.site,
-            form.login_mode,
             form.username,
             form.password,
-            form.cookie,
             form.remember_account,
             form.remember_password,
         )
@@ -113,11 +110,6 @@ class MainController(QtCore.QObject):
         if index >= 0:
             self.window.task_mode_combo.setCurrentIndex(index)
 
-    def _set_login_mode(self, login_mode: LoginMode):
-        index = self.window.login_mode_combo.findData(login_mode.value)
-        if index >= 0:
-            self.window.login_mode_combo.setCurrentIndex(index)
-
     def _set_update_strategy(self, update_strategy: UpdateStrategy):
         index = self.window.update_strategy_combo.findData(update_strategy.value)
         if index >= 0:
@@ -125,9 +117,6 @@ class MainController(QtCore.QObject):
 
     def _current_task_mode(self) -> TaskMode:
         return TaskMode(self.window.task_mode_combo.currentData())
-
-    def _current_login_mode(self) -> LoginMode:
-        return LoginMode(self.window.login_mode_combo.currentData())
 
     def _current_update_strategy(self) -> UpdateStrategy:
         return UpdateStrategy(self.window.update_strategy_combo.currentData())
@@ -149,35 +138,18 @@ class MainController(QtCore.QObject):
 
     def _refresh_login_ui(self):
         site = self._current_site()
-        login_mode = self._current_login_mode()
-
-        if site == "lk":
-            self.window.login_mode_combo.hide()
-            self.window.login_stack.setCurrentWidget(self.window.account_form)
-            self.window.login_hint_label.hide()
-        elif site == "yuri":
-            self.window.login_mode_combo.hide()
-            self.window.login_stack.setCurrentWidget(self.window.cookie_form)
-            self.window.login_hint_label.hide()
+        if site == "masiro":
+            self.window.login_hint_label.setText(self.texts.get_text("text.login_hint_masiro_account"))
+            self.window.login_hint_label.show()
         else:
-            self.window.login_mode_combo.show()
-            if login_mode == LoginMode.COOKIE:
-                self.window.login_stack.setCurrentWidget(self.window.cookie_form)
-            else:
-                self.window.login_stack.setCurrentWidget(self.window.account_form)
-            if site == "masiro" and login_mode == LoginMode.ACCOUNT_PASSWORD:
-                self.window.login_hint_label.setText(self.texts.get_text("text.login_hint_masiro_account"))
-                self.window.login_hint_label.show()
-            else:
-                self.window.login_hint_label.hide()
+            self.window.login_hint_label.hide()
 
         purchase_supported = site in ("lk", "masiro")
         self.window.purchase_checkbox.setEnabled(purchase_supported)
         self.window.max_purchase_spin.setEnabled(purchase_supported and self.window.purchase_checkbox.isChecked())
         self.window.chrome_path_edit.setEnabled(site == "masiro")
         self.window.chrome_path_button.setEnabled(site == "masiro")
-        account_site = site in ("esj", "masiro", "lk")
-        account_mode_active = account_site and (site == "lk" or login_mode == LoginMode.ACCOUNT_PASSWORD)
+        account_mode_active = site in ("esj", "masiro", "lk")
         self.window.remember_account_checkbox.setVisible(account_mode_active)
         self.window.remember_password_checkbox.setVisible(account_mode_active)
         self.window.remember_password_checkbox.setEnabled(account_mode_active)
@@ -187,9 +159,6 @@ class MainController(QtCore.QObject):
 
     def _collect_form(self, site_override: Optional[str] = None) -> TaskForm:
         site = site_override or self._current_site()
-        login_mode = self._current_login_mode() if site in ("esj", "masiro") else (
-            LoginMode.ACCOUNT_PASSWORD if site == "lk" else LoginMode.COOKIE
-        )
         return TaskForm(
             site=site,
             task_name=self.window.task_name_edit.text().strip(),
@@ -198,12 +167,12 @@ class MainController(QtCore.QObject):
             start_page=self.window.start_page_spin.value(),
             end_page=self.window.end_page_spin.value(),
             update_strategy=self._current_update_strategy(),
-            login_mode=login_mode,
+            login_mode=LoginMode.ACCOUNT_PASSWORD,
             remember_account=self.window.remember_account_checkbox.isChecked(),
             remember_password=self.window.remember_password_checkbox.isChecked(),
             username=self.window.username_edit.text().strip(),
             password=self.window.password_edit.text(),
-            cookie=self.window.cookie_edit.toPlainText().strip(),
+            cookie="",
             chrome_path=self.window.chrome_path_edit.text().strip(),
             output_root=self.window.output_root_edit.text().strip(),
             is_purchase=self.window.purchase_checkbox.isChecked(),
@@ -871,10 +840,8 @@ class MainController(QtCore.QObject):
         bundle = self.config_service.load_login_bundle(site)
         self._apply_login_bundle(
             site,
-            bundle["login_mode"],
             bundle["username"],
             bundle["password"],
-            bundle["cookie"],
             bundle["remember_account"],
             bundle["remember_password"],
         )
@@ -882,18 +849,13 @@ class MainController(QtCore.QObject):
     def _apply_login_bundle(
         self,
         site: str,
-        login_mode: LoginMode,
         username: str,
         password: str,
-        cookie: str,
         remember_account: bool,
         remember_password: bool,
     ):
-        _ = site
-        self._set_login_mode(login_mode)
         self.window.username_edit.setText(username)
         self.window.password_edit.setText(password)
-        self.window.cookie_edit.setPlainText(cookie)
         self._set_checkbox(self.window.remember_account_checkbox, remember_account)
         self._set_checkbox(self.window.remember_password_checkbox, remember_password)
         self._loaded_site = site
